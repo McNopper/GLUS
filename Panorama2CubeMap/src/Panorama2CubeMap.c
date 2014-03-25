@@ -18,6 +18,10 @@
 
 #include "GL/glus.h"
 
+#define MAX_FILENAME_LENGTH 1024	// with '\0'
+#define MAX_FILETYPE_LENGTH 5		// with '\0'
+#define SIDE_NAMING_LENGTH	6		// without '\0'
+
 int main(int argc, char* argv[])
 {
 	GLUStgaimage tgaimage;
@@ -26,11 +30,11 @@ int main(int argc, char* argv[])
 	GLUStgaimage tgaCubeMap[6];
 	GLUShdrimage hdrCubeMap[6];
 
-	GLUSchar buffer[1024];
+	GLUSchar buffer[MAX_FILENAME_LENGTH];
 	GLUSchar* extension;
-	GLUSchar fileType[4];
+	GLUSchar fileType[MAX_FILETYPE_LENGTH];
 
-	GLUSint i, k, m, o, x, y, length, stride;
+	GLUSint i, k, m, o, x, y, length, stride, appendIndex;
 
 	GLUSboolean isHDR = GLUS_FALSE;
 
@@ -70,7 +74,7 @@ int main(int argc, char* argv[])
 
 	//
 
-	if (strlen(argv[1]) > 1000)
+	if (strlen(argv[1]) >= MAX_FILENAME_LENGTH - SIDE_NAMING_LENGTH)
 	{
 		printf("Error: Filename too long.\n");
 
@@ -88,23 +92,23 @@ int main(int argc, char* argv[])
 		return -1;
 	}
 
-	if (strlen(extension) != 4)
+	if (strlen(extension) != MAX_FILETYPE_LENGTH - 1)
 	{
 		printf("Error: Invalid file type.\n");
 
 		return -1;
 	}
 
-	for (i = 0; i < 3; i++)
+	// Copy includes NULL terminating character.
+	for (i = 0; i < MAX_FILETYPE_LENGTH ; i++)
 	{
-		fileType[i] = tolower(extension[i + 1]);
+		fileType[i] = tolower(extension[i]);
 	}
-	fileType[3] = '\0';
 
 	//
 
 	printf("Loading '%s' ... ", argv[1]);
-	if (strcmp(fileType, "tga") == 0)
+	if (strcmp(fileType, ".tga") == 0)
 	{
 		if (!glusLoadTgaImage(argv[1], &tgaimage))
 		{
@@ -148,7 +152,7 @@ int main(int argc, char* argv[])
 			}
 		}
 	}
-	else if (strcmp(fileType, "hdr") == 0)
+	else if (strcmp(fileType, ".hdr") == 0)
 	{
 		if (!glusLoadHdrImage(argv[1], &hdrimage))
 		{
@@ -199,6 +203,7 @@ int main(int argc, char* argv[])
 
 	//
 
+	printf("Generating cube maps ... ");
 	for (k = 0; k < length; k++)
 	{
 		for (m = 0; m < length; m++)
@@ -314,16 +319,17 @@ int main(int argc, char* argv[])
 
 	//
 
-	m = strchr(argv[1], '.') - argv[1];
-	strncpy(buffer, argv[1], m);
+	appendIndex = (extension - argv[1]);
 
-	buffer[m + 0] = '_';
-	buffer[m + 4] = '_';
-	buffer[m + 6] = '.';
+	strncpy(buffer, argv[1], appendIndex);
 
-	for (i = 7; i < 11; i++)
+	buffer[appendIndex + 0] = '_';
+	buffer[appendIndex + 4] = '_';
+
+	for (i = SIDE_NAMING_LENGTH; i < SIDE_NAMING_LENGTH + MAX_FILETYPE_LENGTH; i++)
 	{
-		buffer[m + i] = fileType[i - 7];
+		// File type contains the NULL terminating character.
+		buffer[appendIndex + i] = fileType[i - SIDE_NAMING_LENGTH];
 	}
 
 	for (i = 0; i < 6; i++)
@@ -332,50 +338,56 @@ int main(int argc, char* argv[])
 		{
 			case 0:
 
-				buffer[m + 1] = 'P';
-				buffer[m + 2] = 'O';
-				buffer[m + 3] = 'S';
-				buffer[m + 5] = 'X';
+				buffer[appendIndex + 1] = 'P';
+				buffer[appendIndex + 2] = 'O';
+				buffer[appendIndex + 3] = 'S';
+
+				buffer[appendIndex + 5] = 'X';
 
 			break;
 			case 1:
 
-				buffer[m + 1] = 'N';
-				buffer[m + 2] = 'E';
-				buffer[m + 3] = 'G';
-				buffer[m + 5] = 'X';
+				buffer[appendIndex + 1] = 'N';
+				buffer[appendIndex + 2] = 'E';
+				buffer[appendIndex + 3] = 'G';
+
+				buffer[appendIndex + 5] = 'X';
 
 			break;
 			case 2:
 
-				buffer[m + 1] = 'P';
-				buffer[m + 2] = 'O';
-				buffer[m + 3] = 'S';
-				buffer[m + 5] = 'Y';
+				buffer[appendIndex + 1] = 'P';
+				buffer[appendIndex + 2] = 'O';
+				buffer[appendIndex + 3] = 'S';
+
+				buffer[appendIndex + 5] = 'Y';
 
 			break;
 			case 3:
 
-				buffer[m + 1] = 'N';
-				buffer[m + 2] = 'E';
-				buffer[m + 3] = 'G';
-				buffer[m + 5] = 'Y';
+				buffer[appendIndex + 1] = 'N';
+				buffer[appendIndex + 2] = 'E';
+				buffer[appendIndex + 3] = 'G';
+
+				buffer[appendIndex + 5] = 'Y';
 
 			break;
 			case 4:
 
-				buffer[m + 1] = 'P';
-				buffer[m + 2] = 'O';
-				buffer[m + 3] = 'S';
-				buffer[m + 5] = 'Z';
+				buffer[appendIndex + 1] = 'P';
+				buffer[appendIndex + 2] = 'O';
+				buffer[appendIndex + 3] = 'S';
+
+				buffer[appendIndex + 5] = 'Z';
 
 			break;
 			case 5:
 
-				buffer[m + 1] = 'N';
-				buffer[m + 2] = 'E';
-				buffer[m + 3] = 'G';
-				buffer[m + 5] = 'Z';
+				buffer[appendIndex + 1] = 'N';
+				buffer[appendIndex + 2] = 'E';
+				buffer[appendIndex + 3] = 'G';
+
+				buffer[appendIndex + 5] = 'Z';
 
 			break;
 		}
@@ -402,6 +414,7 @@ int main(int argc, char* argv[])
 	{
 		glusDestroyTgaImage(&tgaimage);
 	}
+	printf("completed!\n");
 
 	return 0;
 }
