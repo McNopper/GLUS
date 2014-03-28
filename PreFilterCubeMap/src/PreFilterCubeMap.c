@@ -29,7 +29,6 @@ static GLUShdrimage g_hdrimage[6];
 
 static GLUSuint g_cubemap;
 
-
 static GLUSvoid freeTgaImages(GLUSint currentElement)
 {
 	GLUSint i;
@@ -55,6 +54,8 @@ static GLUSvoid createTgaCubeMap()
 	GLUSint i;
 
     glGenTextures(1, &g_cubemap);
+    // see binding = 0 in the shader
+    glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_CUBE_MAP, g_cubemap);
 
     for (i = 0; i < 6; i++)
@@ -73,6 +74,8 @@ static GLUSvoid createHdrCubeMap()
 	GLUSint i;
 
     glGenTextures(1, &g_cubemap);
+    // see binding = 0 in the shader
+    glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_CUBE_MAP, g_cubemap);
 
     for (i = 0; i < 6; i++)
@@ -94,9 +97,10 @@ int main(int argc, char* argv[])
 	GLUSchar buffer[MAX_FILENAME_LENGTH];
 
 	GLUSint		roughnessSamples;
+	GLUSint		exponent;
 	GLUSint		samples;
 
-	GLUSint i, k, m, ouputLength;
+	GLUSint i, k, m, o, p, q, x, y, ouputLength;
 
 	GLUSboolean isHDR = GLUS_FALSE;
 
@@ -112,18 +116,26 @@ int main(int argc, char* argv[])
 	GLUSfloat offsetVector[3];
 	GLUSfloat normalVector[3];
 	GLUSfloat* scanVectors;
+	GLUSfloat* colorBuffer;
 
 	GLUSfloat matrix[9];
 
 	GLUStextfile computeSource;
-	GLUSshaderprogram g_computeProgram;
+	GLUSshaderprogram computeProgram;
 
 	GLUSuint localSize = 16;
 
+	GLUSuint texture;
+
+	GLUSuint scanVectorsSSBO;
+
+	GLUSint mLocation;
+	GLUSint samplesLocation;
+	GLUSint roughnessLocation;
 
 	if (argc != 10)
 	{
-		printf("Usage: Panorama2CubeMap.exe [Pos X] [Neg X] [Pos Y] [Neg Y] [Pos Z] [Neg Z] [Output] [Roughness] [Samples]\n");
+		printf("Usage: Panorama2CubeMap.exe [Pos X] [Neg X] [Pos Y] [Neg Y] [Pos Z] [Neg Z] [Output] [Roughness] [Samples 2^m]\n");
 
 		return -1;
 	}
@@ -150,14 +162,16 @@ int main(int argc, char* argv[])
 		return -1;
 	}
 
-	samples = atoi(argv[9]);
+	exponent = atoi(argv[9]);
 
-	if (samples < 1 || samples > 65536)
+	if (exponent < 0 || exponent > 16)
 	{
 		printf("Error: Invalid samples calue.\n");
 
 		return -1;
 	}
+
+	samples = 2 << exponent;
 
 	//
 
@@ -317,21 +331,34 @@ int main(int argc, char* argv[])
 	}
 	printf("completed!\n");
 
-	//
-
-	scanVectors = (GLUSfloat*)malloc(length * length * 3 * sizeof(GLUSfloat));
+	// Contains the vectors to scan and generate one side of the pre-filtered cube map.
+	scanVectors = (GLUSfloat*)malloc(length * length * (3 + 1) * sizeof(GLUSfloat));
 
 	if (!scanVectors)
 	{
-		printf("failed! Scan scanVectors could not be created.\n");
+		printf("Error: Scan scanVectors could not be created.\n");
 
 		freeHdrImages(6);
 
 		return -1;
 	}
 
+	// Color buffer needed to gather the pixels from the texture.
+	colorBuffer = (GLUSfloat*)malloc(length * length * 4 * sizeof(GLUSfloat));
+
+	if (!colorBuffer)
+	{
+		printf("Error: Color buffer could not be created.\n");
+
+		freeHdrImages(6);
+
+		free(scanVectors);
+
+		return -1;
+	}
+
 	//
-	//
+	// Initialize OpenGL, as it is needed for the compute shader.
 	//
 
 	glusPrepareContext(4, 3, GLUS_FORWARD_COMPATIBLE_BIT);
@@ -348,12 +375,24 @@ int main(int argc, char* argv[])
 	}
 
 	//
+	// Compute shader for pre-filtering.
+	//
 
 	glusLoadTextFile("../PreFilterCubeMap/shader/prefilter.comp.glsl", &computeSource);
 
-	glusBuildComputeProgramFromSource(&g_computeProgram, (const GLchar**)&computeSource.text);
+	glusBuildComputeProgramFromSource(&computeProgram, (const GLchar**)&computeSource.text);
 
 	glusDestroyTextFile(&computeSource);
+
+	//
+
+	mLocation = glGetUniformLocation(computeProgram.program, "u_m");
+	samplesLocation = glGetUniformLocation(computeProgram.program, "u_samples");
+	roughnessLocation = glGetUniformLocation(computeProgram.program, "u_roughness");
+
+	//
+
+	glUseProgram(computeProgram.program);
 
 	//
 	//
@@ -365,17 +404,30 @@ int main(int argc, char* argv[])
 		createHdrCubeMap();
 
 		freeHdrImages(6);
-
-		// TODO Setup output HDR buffer for compute shader.
 	}
 	else
 	{
 		createTgaCubeMap();
 
 		freeTgaImages(6);
-
-		// TODO Setup output TGA buffer for compute shader.
 	}
+
+	// Prepare texture, where the pre-filtered image is stored.
+    glGenTextures(1, &texture);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, texture);
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, length, length, 0, GL_RGBA, GL_FLOAT, 0);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    // see binding = 1 in the shader
+    glBindImageTexture(1, texture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
+
+	glPixelStorei(GL_PACK_ALIGNMENT, 1);
 
 	//
 	//
@@ -383,6 +435,8 @@ int main(int argc, char* argv[])
 
 	step = 2.0f / (GLUSfloat)length;
 	offset = step * 0.5f;
+
+	// Prepare save name.
 
 	strcpy(buffer, output);
 	buffer[ouputLength + 0] = '_';
@@ -395,9 +449,19 @@ int main(int argc, char* argv[])
 		buffer[i] = fileType[i - (ouputLength + SIDE_NAMING_LENGTH + ROUGHNESS_NAMING_LENGTH)];
 	}
 
-	// TODO Setup scan ray buffer for compute shader.
-	// TODO Setup samples for compute shader.
-	// TODO Setup format and type for compute shader.
+	//
+
+	// Setup scan vectors buffer for compute shader.
+	glGenBuffers(1, &scanVectorsSSBO);
+
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, scanVectorsSSBO);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, length * length * (3 + 1) * sizeof(GLfloat), 0, GL_DYNAMIC_DRAW);
+	// see binding = 2 in the shader
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, scanVectorsSSBO);
+
+	// Setup m and samples for compute shader.
+	glUniform1i(mLocation, exponent);
+	glUniform1i(samplesLocation, samples);
 
 	printf("Generating pre filtered cube maps ... ");
 	for (i = 0; i < 6; i++)
@@ -485,7 +549,7 @@ int main(int argc, char* argv[])
 			break;
 		}
 
-		// Generate scan scan vectors
+		// Generate scan vectors
 		for (k = 0; k < length; k++)
 		{
 			for (m = 0; m < length; m++)
@@ -497,24 +561,73 @@ int main(int argc, char* argv[])
 				glusVector3AddVector3f(normalVector, startVector, offsetVector);
 				glusVector3Normalizef(normalVector);
 
-				glusMatrix3x3MultiplyVector3f(&scanVectors[k * length * 3 + m * 3], matrix, normalVector);
+				glusMatrix3x3MultiplyVector3f(&scanVectors[k * length * (3 + 1) + m * (3 + 1)], matrix, normalVector);
 			}
 		}
 
-		// TODO Setup i for compute shader.
+		// Upload scan vectors for each side.
+		glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, length * length * (3 + 1) * sizeof(GLfloat), scanVectors);
 
 		// For all roughness levels
 		for (k = 0; k < roughnessSamples; k++)
 		{
+			// Calculate roughness ...
 			roughness = (GLUSfloat)k * 1.0f / (GLUSfloat)(roughnessSamples - 1);
 
-			glUseProgram(g_computeProgram.program);
+			// ... and set it up for compute shader.
+			glUniform1f(roughnessLocation, roughness);
 
-			// TODO Setup roughness for compute shader.
-
+			// Run the compute shader, which is doing the pre-filtering.
 			glDispatchCompute(length / localSize, length / localSize, 1);
 
-			glUseProgram(0);
+			// Compute shader stores result in given texture.
+			glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, colorBuffer);
+
+			// Resolve
+			for (p = 0; p < length; p++)
+			{
+				for (q = 0; q < length; q++)
+				{
+					// Some of the textures need to be stored flipped and mirrored down.
+					switch (i)
+					{
+						case 0:
+						case 1:
+						case 4:
+						case 5:
+							// Positive X
+							// Negative X
+							// Positive Z
+							// Negative Z
+
+							x = length - 1 - q;
+							y = length - 1 - p;
+
+						break;
+						case 2:
+						case 3:
+							// Positive Y
+							// Negative Y
+
+							x = q;
+							y = p;
+
+						break;
+					}
+
+					for (o = 0; o < stride; o++)
+					{
+						if (isHDR)
+						{
+							hdrOutput.data[p * length * stride + q * stride + o] = colorBuffer[y * length * 4 + x * 4 + o];
+						}
+						else
+						{
+							tgaOutput.data[p * length * stride + q * stride + o] = (GLUSubyte)glusClampf(colorBuffer[y * length * 4 + x * 4 + o] * 255.0f, 0.0f, 255.0f);
+						}
+					}
+				}
+			}
 
 			// Construct save name depending on roughness level.
 			buffer[ouputLength + 7] = '0' + (k / 10);
@@ -533,10 +646,14 @@ int main(int argc, char* argv[])
 	printf("completed!\n");
 
 	//
-	//
+	// Freeing resources
 	//
 
-	glusDestroyProgram(&g_computeProgram);
+	free(scanVectors);
+
+	free(colorBuffer);
+
+	glusDestroyProgram(&computeProgram);
 
     glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
 
@@ -545,6 +662,15 @@ int main(int argc, char* argv[])
         glDeleteTextures(1, &g_cubemap);
 
         g_cubemap = 0;
+    }
+
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    if (texture)
+    {
+        glDeleteTextures(1, &texture);
+
+        texture = 0;
     }
 
     if (isHDR)
@@ -556,8 +682,17 @@ int main(int argc, char* argv[])
     	glusDestroyTgaImage(&tgaOutput);
     }
 
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+	if (scanVectorsSSBO)
+	{
+		glDeleteBuffers(1, &scanVectorsSSBO);
+
+		scanVectorsSSBO = 0;
+	}
+
 	//
-	//
+	// Shutdown OpenGL.
 	//
 
 	glusShutdown();
