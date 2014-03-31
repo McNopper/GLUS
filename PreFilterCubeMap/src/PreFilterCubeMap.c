@@ -23,6 +23,7 @@
 #define MAX_FILETYPE_LENGTH		5		// with '\0'
 #define SIDE_NAMING_LENGTH		6		// without '\0'
 #define ROUGHNESS_NAMING_LENGTH	3		// without '\0'
+#define TYPE_NAMING_LENGTH		2		// without '\0'
 
 static GLUStgaimage g_tgaimage[6];
 static GLUShdrimage g_hdrimage[6];
@@ -97,15 +98,15 @@ int main(int argc, char* argv[])
 	GLUSchar buffer[MAX_FILENAME_LENGTH];
 
 	GLUSint		roughnessSamples;
-	GLUSint		exponent;
-	GLUSint		samples;
+	GLUSuint		exponent;
+	GLUSuint		samples;
 
 	GLUSint i, k, m, o, p, q, x, y, ouputLength;
 
 	GLUSboolean isHDR = GLUS_FALSE;
 
-	GLUStgaimage tgaOutput;
-	GLUShdrimage hdrOutput;
+	GLUStgaimage tgaOutput[2];
+	GLUShdrimage hdrOutput[2];
 
 	GLUSint	length;
 	GLUSint	stride;
@@ -116,7 +117,8 @@ int main(int argc, char* argv[])
 	GLUSfloat offsetVector[3];
 	GLUSfloat normalVector[3];
 	GLUSfloat* scanVectors;
-	GLUSfloat* colorBuffer;
+	GLUSfloat* colorBufferLambert;
+	GLUSfloat* colorBufferCookTorrance;
 
 	GLUSfloat matrix[9];
 
@@ -125,12 +127,14 @@ int main(int argc, char* argv[])
 
 	GLUSuint localSize = 16;
 
-	GLUSuint texture;
+	GLUSuint textureLambert;
+	GLUSuint textureCookTorrance;
 
 	GLUSuint scanVectorsSSBO;
 
 	GLUSint mLocation;
 	GLUSint samplesLocation;
+	GLUSint binaryFractionFactorLocation;
 	GLUSint roughnessLocation;
 
 	if (argc != 10)
@@ -146,7 +150,7 @@ int main(int argc, char* argv[])
 
 	ouputLength = strlen(output);
 
-	if (ouputLength >= MAX_FILENAME_LENGTH - SIDE_NAMING_LENGTH - ROUGHNESS_NAMING_LENGTH)
+	if (ouputLength >= MAX_FILENAME_LENGTH - (MAX_FILETYPE_LENGTH - 1) - SIDE_NAMING_LENGTH - ROUGHNESS_NAMING_LENGTH - TYPE_NAMING_LENGTH)
 	{
 		printf("Error: Output filename too long.\n");
 
@@ -162,9 +166,9 @@ int main(int argc, char* argv[])
 		return -1;
 	}
 
-	exponent = atoi(argv[9]);
+	exponent = (GLUSuint)atoi(argv[9]);
 
-	if (exponent < 0 || exponent > 16)
+	if (exponent > 16)
 	{
 		printf("Error: Invalid samples calue.\n");
 
@@ -252,15 +256,30 @@ int main(int argc, char* argv[])
 
 		//
 
-		tgaOutput = g_tgaimage[0];
+		tgaOutput[0] = g_tgaimage[0];
 
-		tgaOutput.data = (GLUSubyte*)malloc(length * length * stride * sizeof(GLUSubyte));
+		tgaOutput[0].data = (GLUSubyte*)malloc(length * length * stride * sizeof(GLUSubyte));
 
-		if (!tgaOutput.data)
+		if (!tgaOutput[0].data)
 		{
 			printf("failed! TGA output image could not be created.\n");
 
 			freeTgaImages(6);
+
+			return -1;
+		}
+
+		tgaOutput[1] = g_tgaimage[0];
+
+		tgaOutput[1].data = (GLUSubyte*)malloc(length * length * stride * sizeof(GLUSubyte));
+
+		if (!tgaOutput[1].data)
+		{
+			printf("failed! TGA output image could not be created.\n");
+
+			freeTgaImages(6);
+
+			glusDestroyTgaImage(&tgaOutput[0]);
 
 			return -1;
 		}
@@ -310,15 +329,30 @@ int main(int argc, char* argv[])
 
 		//
 
-		hdrOutput = g_hdrimage[0];
+		hdrOutput[0] = g_hdrimage[0];
 
-		hdrOutput.data = (GLUSfloat*)malloc(length * length * stride * sizeof(GLUSfloat));
+		hdrOutput[0].data = (GLUSfloat*)malloc(length * length * stride * sizeof(GLUSfloat));
 
-		if (!hdrOutput.data)
+		if (!hdrOutput[0].data)
 		{
 			printf("failed! HDR output image could not be created.\n");
 
 			freeHdrImages(6);
+
+			return -1;
+		}
+
+		hdrOutput[1] = g_hdrimage[0];
+
+		hdrOutput[1].data = (GLUSfloat*)malloc(length * length * stride * sizeof(GLUSfloat));
+
+		if (!hdrOutput[1].data)
+		{
+			printf("failed! HDR output image could not be created.\n");
+
+			freeHdrImages(6);
+
+			glusDestroyHdrImage(&hdrOutput[1]);
 
 			return -1;
 		}
@@ -344,15 +378,31 @@ int main(int argc, char* argv[])
 	}
 
 	// Color buffer needed to gather the pixels from the texture.
-	colorBuffer = (GLUSfloat*)malloc(length * length * 4 * sizeof(GLUSfloat));
+	colorBufferLambert = (GLUSfloat*)malloc(length * length * 4 * sizeof(GLUSfloat));
 
-	if (!colorBuffer)
+	if (!colorBufferLambert)
 	{
 		printf("Error: Color buffer could not be created.\n");
 
 		freeHdrImages(6);
 
 		free(scanVectors);
+
+		return -1;
+	}
+
+	// Color buffer needed to gather the pixels from the texture.
+	colorBufferCookTorrance = (GLUSfloat*)malloc(length * length * 4 * sizeof(GLUSfloat));
+
+	if (!colorBufferCookTorrance)
+	{
+		printf("Error: Color buffer could not be created.\n");
+
+		freeHdrImages(6);
+
+		free(scanVectors);
+
+		free(colorBufferLambert);
 
 		return -1;
 	}
@@ -388,6 +438,7 @@ int main(int argc, char* argv[])
 
 	mLocation = glGetUniformLocation(computeProgram.program, "u_m");
 	samplesLocation = glGetUniformLocation(computeProgram.program, "u_samples");
+	binaryFractionFactorLocation = glGetUniformLocation(computeProgram.program, "u_binaryFractionFactor");
 	roughnessLocation = glGetUniformLocation(computeProgram.program, "u_roughness");
 
 	//
@@ -412,10 +463,10 @@ int main(int argc, char* argv[])
 		freeTgaImages(6);
 	}
 
-	// Prepare texture, where the pre-filtered image is stored.
-    glGenTextures(1, &texture);
+	// Prepare texture, where the pre-filtered image is stored: Lambert
+    glGenTextures(1, &textureLambert);
     glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, texture);
+    glBindTexture(GL_TEXTURE_2D, textureLambert);
 
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, length, length, 0, GL_RGBA, GL_FLOAT, 0);
 
@@ -425,7 +476,26 @@ int main(int argc, char* argv[])
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
     // see binding = 1 in the shader
-    glBindImageTexture(1, texture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
+    glBindImageTexture(1, textureLambert, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
+
+	glPixelStorei(GL_PACK_ALIGNMENT, 1);
+
+	//
+
+	// Prepare texture, where the pre-filtered image is stored: Cook-Torrance
+    glGenTextures(1, &textureCookTorrance);
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, textureCookTorrance);
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, length, length, 0, GL_RGBA, GL_FLOAT, 0);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    // see binding = 2 in the shader
+    glBindImageTexture(2, textureCookTorrance, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
 
 	glPixelStorei(GL_PACK_ALIGNMENT, 1);
 
@@ -444,9 +514,11 @@ int main(int argc, char* argv[])
 
 	buffer[ouputLength + 6] = '_';
 
-	for (i = ouputLength + SIDE_NAMING_LENGTH + ROUGHNESS_NAMING_LENGTH; i < ouputLength + SIDE_NAMING_LENGTH + ROUGHNESS_NAMING_LENGTH + MAX_FILETYPE_LENGTH; i++)
+	buffer[ouputLength + 9] = '_';
+
+	for (i = ouputLength + SIDE_NAMING_LENGTH + ROUGHNESS_NAMING_LENGTH + TYPE_NAMING_LENGTH; i < ouputLength + SIDE_NAMING_LENGTH + ROUGHNESS_NAMING_LENGTH + TYPE_NAMING_LENGTH + MAX_FILETYPE_LENGTH; i++)
 	{
-		buffer[i] = fileType[i - (ouputLength + SIDE_NAMING_LENGTH + ROUGHNESS_NAMING_LENGTH)];
+		buffer[i] = fileType[i - (ouputLength + SIDE_NAMING_LENGTH + ROUGHNESS_NAMING_LENGTH + TYPE_NAMING_LENGTH)];
 	}
 
 	//
@@ -456,12 +528,14 @@ int main(int argc, char* argv[])
 
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, scanVectorsSSBO);
 	glBufferData(GL_SHADER_STORAGE_BUFFER, length * length * (3 + 1) * sizeof(GLfloat), 0, GL_DYNAMIC_DRAW);
-	// see binding = 2 in the shader
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, scanVectorsSSBO);
+	// see binding = 3 in the shader
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, scanVectorsSSBO);
 
 	// Setup m and samples for compute shader.
-	glUniform1i(mLocation, exponent);
-	glUniform1i(samplesLocation, samples);
+	glUniform1ui(mLocation, exponent);
+	glUniform1ui(samplesLocation, samples);
+	// Results are in range [0.0 1.0] and not [0.0, 1.0[.
+	glUniform1f(binaryFractionFactorLocation, 1.0f / (powf(2.0f, (GLfloat)exponent) - 1.0f));
 
 	printf("Generating pre filtered cube maps ... ");
 	for (i = 0; i < 6; i++)
@@ -580,8 +654,15 @@ int main(int argc, char* argv[])
 			// Run the compute shader, which is doing the pre-filtering.
 			glDispatchCompute(length / localSize, length / localSize, 1);
 
+		    glActiveTexture(GL_TEXTURE1);
+		    glBindTexture(GL_TEXTURE_2D, textureLambert);
 			// Compute shader stores result in given texture.
-			glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, colorBuffer);
+			glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, colorBufferLambert);
+
+		    glActiveTexture(GL_TEXTURE2);
+		    glBindTexture(GL_TEXTURE_2D, textureCookTorrance);
+			// Compute shader stores result in given texture.
+			glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, colorBufferCookTorrance);
 
 			// Resolve
 			for (p = 0; p < length; p++)
@@ -619,11 +700,13 @@ int main(int argc, char* argv[])
 					{
 						if (isHDR)
 						{
-							hdrOutput.data[p * length * stride + q * stride + o] = colorBuffer[y * length * 4 + x * 4 + o];
+							hdrOutput[0].data[p * length * stride + q * stride + o] = colorBufferLambert[y * length * 4 + x * 4 + o];
+							hdrOutput[1].data[p * length * stride + q * stride + o] = colorBufferCookTorrance[y * length * 4 + x * 4 + o];
 						}
 						else
 						{
-							tgaOutput.data[p * length * stride + q * stride + o] = (GLUSubyte)glusClampf(colorBuffer[y * length * 4 + x * 4 + o] * 255.0f, 0.0f, 255.0f);
+							tgaOutput[0].data[p * length * stride + q * stride + o] = (GLUSubyte)glusClampf(colorBufferLambert[y * length * 4 + x * 4 + o] * 255.0f, 0.0f, 255.0f);
+							tgaOutput[1].data[p * length * stride + q * stride + o] = (GLUSubyte)glusClampf(colorBufferCookTorrance[y * length * 4 + x * 4 + o] * 255.0f, 0.0f, 255.0f);
 						}
 					}
 				}
@@ -635,11 +718,17 @@ int main(int argc, char* argv[])
 
 			if (isHDR)
 			{
-				glusSaveHdrImage(buffer, &hdrOutput);
+				buffer[ouputLength + 10] = 'd';
+				glusSaveHdrImage(buffer, &hdrOutput[0]);
+				buffer[ouputLength + 10] = 's';
+				glusSaveHdrImage(buffer, &hdrOutput[1]);
 			}
 			else
 			{
-				glusSaveTgaImage(buffer, &tgaOutput);
+				buffer[ouputLength + 10] = 'd';
+				glusSaveTgaImage(buffer, &tgaOutput[0]);
+				buffer[ouputLength + 10] = 's';
+				glusSaveTgaImage(buffer, &tgaOutput[1]);
 			}
 		}
 	}
@@ -651,7 +740,9 @@ int main(int argc, char* argv[])
 
 	free(scanVectors);
 
-	free(colorBuffer);
+	free(colorBufferLambert);
+
+	free(colorBufferCookTorrance);
 
 	glusDestroyProgram(&computeProgram);
 
@@ -666,20 +757,30 @@ int main(int argc, char* argv[])
 
     glBindTexture(GL_TEXTURE_2D, 0);
 
-    if (texture)
+    if (textureLambert)
     {
-        glDeleteTextures(1, &texture);
+        glDeleteTextures(1, &textureLambert);
 
-        texture = 0;
+        textureLambert = 0;
     }
+
+    if (textureCookTorrance)
+    {
+        glDeleteTextures(1, &textureCookTorrance);
+
+        textureCookTorrance = 0;
+    }
+
 
     if (isHDR)
     {
-    	glusDestroyHdrImage(&hdrOutput);
+    	glusDestroyHdrImage(&hdrOutput[0]);
+    	glusDestroyHdrImage(&hdrOutput[1]);
     }
     else
     {
-    	glusDestroyTgaImage(&tgaOutput);
+    	glusDestroyTgaImage(&tgaOutput[0]);
+    	glusDestroyTgaImage(&tgaOutput[1]);
     }
 
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);

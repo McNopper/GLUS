@@ -5,30 +5,32 @@
 // see localSize = 16 in main.c.
 layout (local_size_x = 16, local_size_y = 16) in;
 
-layout (binding = 0) uniform samplerCube u_cubeMap;
-
-layout (rgba32f, binding = 1) uniform image2D u_textureLambert;
-
-layout (rgba32f, binding = 2) uniform image2D u_textureCookTorrance;
-
-layout (std430, binding = 3) buffer ScanVectors
-{
-	vec3 direction[];
-	// Padding[]
-} b_scanVectors;
+layout (rg32f, binding = 0) uniform image2D u_textureCookTorrance;
 
 uniform uint u_m;
 uniform uint u_samples;
 uniform float u_binaryFractionFactor;
 
-uniform float u_roughness;
+// see http://graphicrants.blogspot.de/2013/08/specular-brdf-reference.html
+// see http://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf
+float geometricShadowingSchlickBeckmann(float NdotV, float k)
+{
+	return NdotV / (NdotV * (1.0 - k) + k);
+}
+
+// see http://graphicrants.blogspot.de/2013/08/specular-brdf-reference.html
+// see http://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf
+float geometricShadowingSmith(float NdotL, float NdotV, float k)
+{
+	return geometricShadowingSchlickBeckmann(NdotL, k) * geometricShadowingSchlickBeckmann(NdotV, k);
+}
 
 // see http://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf
 // see http://blog.selfshadow.com/publications/s2012-shading-course/burley/s2012_pbs_disney_brdf_notes_v2.pdf
 // see Physically Based Rendering Chapter 13.6.1
-vec3 microfacetWeightedSampling(vec2 e)
+vec3 microfacetWeightedSampling(vec2 e, float roughness)
 {
-	float alpha = u_roughness * u_roughness;
+	float alpha = roughness * roughness;
 	
 	// Note: Polar Coordinates
 	// x = sin(theta)*cos(phi)
@@ -46,16 +48,6 @@ vec3 microfacetWeightedSampling(vec2 e)
 	return vec3(x, y, z);
 }
 
-// see Physically Based Rendering Chapter 13.6.1 and 13.6.3
-vec3 cosineWeightedSampling(vec2 e)
-{
-	float x = sqrt(1.0 - e.x) * cos(2.0*GLUS_PI*e.y);
-	float y = sqrt(1.0 - e.x) * sin(2.0*GLUS_PI*e.y);
-	float z = sqrt(e.x);
-	
-	return vec3(x, y, z);
-}
-
 //
 //
 //
@@ -63,43 +55,58 @@ vec3 cosineWeightedSampling(vec2 e)
 // see http://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf
 // see http://blog.selfshadow.com/publications/s2012-shading-course/burley/s2012_pbs_disney_brdf_notes_v2.pdf 
 // see http://sirkan.iit.bme.hu/~szirmay/scook.pdf
-vec4 lightCookTorrance(vec2 randomPoint, mat3 basis, vec3 N, vec3 V, float k)
+vec2 integrateBrdfCookTorrance(vec2 randomPoint, vec3 N, vec3 V, float k, float roughness)
 {
-	vec4 noColor = vec4(0.0, 0.0, 0.0, 1.0);
+	vec2 noValue = vec2(0.0, 0.0);
 
-	vec3 HtangentSpace = microfacetWeightedSampling(randomPoint);
-	
-	// Transform H to world space.
-	vec3 H = basis * HtangentSpace;
+	vec3 H = microfacetWeightedSampling(randomPoint, roughness);
 	
 	// Note: reflect takes incident vector.
 	vec3 L = reflect(-V, H);
 	
 	float NdotL = dot(N, L);
 	float NdotV = dot(N, V);
+	float NdotH = dot(N, H);
 	
 	// Lighted and visible
 	if (NdotL > 0.0 && NdotV > 0.0)
 	{
-		return texture(u_cubeMap, L);;
+		float VdotH = dot(V, H);
+
+		// Geometric Shadowing
+		float G = geometricShadowingSmith(NdotL, NdotV, k);
+	
+		//
+		// Lo = BRDF * L * NdotL / PDF
+		//
+		// BRDF is D * F * G / (4 * NdotL * NdotV).
+		// PDF is D * NdotH / (4 * VdotH).
+		// D and 4 * NdotL are canceled out, which results in this formula: Lo = color * L * F * G * VdotH / (NdotV * NdotH)
+		//
+		// Using the approximation as 
+		// seen on page 6 in Real Shading in Unreal Engine 4
+		// L is stored in the cube map array, F is replaced and color is later used in the real-time BRDF shader.
+				
+		float colorFactor = G * VdotH / (NdotV * NdotH);
+		
+		// Note: Needed for robustness. With specific parameters, a NaN can be the result.
+		if (isnan(colorFactor))
+		{
+			return noValue;
+		}
+		
+		float fresnelFactor = pow(1.0 - VdotH, 5.0);
+		
+		// Scale to F0 (first sum)
+		float scaleF0 = (1.0 - fresnelFactor) * colorFactor; 
+		
+		// Bias to F0 (second sum)
+		float biasF0 = fresnelFactor * colorFactor;
+				
+		return vec2(scaleF0, biasF0);
 	}
 	
-	return noColor;
-}
-
-//
-
-// see http://www.scratchapixel.com/lessons/3d-advanced-lessons/things-to-know-about-the-cg-lighting-pipeline/what-is-a-brdf/
-// see Physically Based Rendering Chapter 5.6.1, 13.2 and 13.6.3
-// see Fundamentals of Computer Graphics Chapter 14.2 and 24.2
-vec4 lightLambert(vec2 randomPoint, mat3 basis)
-{
-	vec3 LtangentSpace = cosineWeightedSampling(randomPoint);
-	
-	// Transform light ray to world space.
-	vec3 L = basis * LtangentSpace;  
-
-	return texture(u_cubeMap, L);
+	return noValue;
 }
 
 //
@@ -125,69 +132,49 @@ vec2 hammersley(uint originalSample)
 	return vec2(float(revertSample) * u_binaryFractionFactor, float(originalSample) * u_binaryFractionFactor);
 }
 
-void calculateBasis(out vec3 tangent, out vec3 bitangent, in vec3 normal)
-{
-	bitangent = vec3(0.0, 1.0, 0.0);
-
-	float normalDotUp = dot(normal, bitangent);
-
-	if (normalDotUp == 1.0)
-	{
-		bitangent = vec3(0.0, 0.0, -1.0);
-	}
-	else if (normalDotUp == -1.0)
-	{
-		bitangent = vec3(0.0, 0.0, 1.0);
-	}
-	
-	tangent = cross(bitangent, normal);	
-	bitangent = cross(normal, tangent);
-} 
-
 void main(void)
 {
-	vec4 colorLambert = vec4(0.0, 0.0, 0.0, 0.0);
-	
-	vec4 colorCookTorrance = vec4(0.0, 0.0, 0.0, 0.0);
+	vec2 outputCookTorrance = vec2(0.0, 0.0);
 
 	//	
 
-	ivec2 dimension = textureSize(u_cubeMap, 0);
+	ivec2 dimension = imageSize(u_textureCookTorrance);
 
 	ivec2 storePos = ivec2(gl_GlobalInvocationID.xy);
 
 	int pixelPos = storePos.x + storePos.y * dimension.x;
 	
 	//
+		
+	vec2 randomPoint;
+
+	//
+
+	float NdotV =  float(storePos.x) / float(dimension.x - 1);
 	
-	vec3 tangent;
-	vec3 bitangent;
-	vec3 normal = b_scanVectors.direction[pixelPos];
+	vec3 N = vec3(0.0, 0.0, 1.0);
 	
-	calculateBasis(tangent, bitangent, normal);
-	
-	mat3 basis = mat3(tangent, bitangent, normal);
+	vec3 V;
+	V.x = sqrt(1.0 - NdotV * NdotV);
+	V.y = 0.0;
+	V.z = NdotV;
 	
 	//
 	
-	vec2 randomPoint;
+	float roughness =  float(storePos.y) / float(dimension.y - 1);
 	
 	// see http://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf Section Specular G
-	float k = (u_roughness + 1.0) * (u_roughness + 1.0) / 8.0;
+	float k = (roughness + 1.0) * (roughness + 1.0) / 8.0;
+	
+	//
 	
 	for (uint sampleIndex = 0; sampleIndex < u_samples; sampleIndex++)
 	{
 		randomPoint = hammersley(sampleIndex);
 	
-		// Diffuse
-		colorLambert += lightLambert(randomPoint, basis);
-		
 		// Specular
-		// see assumption N = V in Pre-Filtered Environment Map in Real Shading in Unreal Engine 4
-		colorCookTorrance += lightCookTorrance(randomPoint, basis, normal, normal, k); 
+		outputCookTorrance += integrateBrdfCookTorrance(randomPoint, N, V, k, roughness); 
 	}
 	
-	imageStore(u_textureLambert, storePos, colorLambert / float(u_samples));
-	
-	imageStore(u_textureCookTorrance, storePos, colorCookTorrance / float(u_samples));
+	imageStore(u_textureCookTorrance, storePos, vec4(outputCookTorrance / float(u_samples), 0.0, 0.0));
 }
