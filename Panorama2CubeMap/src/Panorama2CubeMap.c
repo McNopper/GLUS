@@ -170,6 +170,7 @@ int main(int argc, char* argv[])
 			hdrCubeMap[i].width = length;
 			hdrCubeMap[i].height = length;
 			hdrCubeMap[i].depth = 1;
+			hdrCubeMap[i].format = GLUS_RGB;
 
 			hdrCubeMap[i].data = (GLUSfloat*)malloc(length * length * stride * sizeof(GLUSfloat));
 

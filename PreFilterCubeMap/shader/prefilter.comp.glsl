@@ -152,7 +152,7 @@ void main(void)
 
 	//	
 
-	ivec2 dimension = textureSize(u_cubeMap, 0);
+	ivec2 dimension = imageSize(u_textureLambert);
 
 	ivec2 storePos = ivec2(gl_GlobalInvocationID.xy);
 

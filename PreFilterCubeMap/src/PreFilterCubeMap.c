@@ -109,6 +109,7 @@ int main(int argc, char* argv[])
 	GLUShdrimage hdrOutput[2];
 
 	GLUSint	length;
+	GLUSint	lengthExponent;
 	GLUSint	stride;
 
 	GLUSfloat offset, step, roughness;
@@ -137,9 +138,9 @@ int main(int argc, char* argv[])
 	GLUSint binaryFractionFactorLocation;
 	GLUSint roughnessLocation;
 
-	if (argc != 10)
+	if (argc != 11)
 	{
-		printf("Usage: Panorama2CubeMap.exe [Pos X] [Neg X] [Pos Y] [Neg Y] [Pos Z] [Neg Z] [Output] [Roughness] [Samples 2^m]\n");
+		printf("Usage: Panorama2CubeMap.exe [Pos X] [Neg X] [Pos Y] [Neg Y] [Pos Z] [Neg Z] [Output] [Roughness] [Samples 2^m] [Length 2^n]\n");
 
 		return -1;
 	}
@@ -170,12 +171,31 @@ int main(int argc, char* argv[])
 
 	if (exponent > 16)
 	{
-		printf("Error: Invalid samples calue.\n");
+		printf("Error: Invalid samples value.\n");
 
 		return -1;
 	}
 
 	samples = 2 << exponent;
+
+	lengthExponent = (GLUSuint)atoi(argv[10]);
+
+	if (lengthExponent > 16)
+	{
+		printf("Error: Invalid length value.\n");
+
+		return -1;
+	}
+
+	length = 2 << lengthExponent;
+
+	if (roughnessSamples < 2 || roughnessSamples >= 100)
+	{
+		printf("Error: Invalid roughness value.\n");
+
+		return -1;
+	}
+
 
 	//
 
@@ -252,11 +272,12 @@ int main(int argc, char* argv[])
 			stride = 4;
 		}
 
-		length = g_tgaimage[0].width;
-
 		//
 
 		tgaOutput[0] = g_tgaimage[0];
+
+		tgaOutput[0].width = length;
+		tgaOutput[0].height = length;
 
 		tgaOutput[0].data = (GLUSubyte*)malloc(length * length * stride * sizeof(GLUSubyte));
 
@@ -270,6 +291,9 @@ int main(int argc, char* argv[])
 		}
 
 		tgaOutput[1] = g_tgaimage[0];
+
+		tgaOutput[1].width = length;
+		tgaOutput[1].height = length;
 
 		tgaOutput[1].data = (GLUSubyte*)malloc(length * length * stride * sizeof(GLUSubyte));
 
@@ -325,11 +349,12 @@ int main(int argc, char* argv[])
 
 		stride = 3;
 
-		length = g_hdrimage[0].width;
-
 		//
 
 		hdrOutput[0] = g_hdrimage[0];
+
+		hdrOutput[0].width = length;
+		hdrOutput[0].height = length;
 
 		hdrOutput[0].data = (GLUSfloat*)malloc(length * length * stride * sizeof(GLUSfloat));
 
@@ -343,6 +368,9 @@ int main(int argc, char* argv[])
 		}
 
 		hdrOutput[1] = g_hdrimage[0];
+
+		hdrOutput[1].width = length;
+		hdrOutput[1].height = length;
 
 		hdrOutput[1].data = (GLUSfloat*)malloc(length * length * stride * sizeof(GLUSfloat));
 
@@ -537,9 +565,11 @@ int main(int argc, char* argv[])
 	// Results are in range [0.0 1.0] and not [0.0, 1.0[.
 	glUniform1f(binaryFractionFactorLocation, 1.0f / (powf(2.0f, (GLfloat)exponent) - 1.0f));
 
-	printf("Generating pre filtered cube maps ... ");
+	printf("Generating pre filtered cube maps ...\n");
 	for (i = 0; i < 6; i++)
 	{
+		printf("Side: %d\n", i);
+
 		switch (i)
 		{
 			case 0:
@@ -647,6 +677,8 @@ int main(int argc, char* argv[])
 		{
 			// Calculate roughness ...
 			roughness = (GLUSfloat)k * 1.0f / (GLUSfloat)(roughnessSamples - 1);
+
+			printf("Roughness: %f\n", roughness);
 
 			// ... and set it up for compute shader.
 			glUniform1f(roughnessLocation, roughness);
