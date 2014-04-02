@@ -176,7 +176,7 @@ int main(int argc, char* argv[])
 		return -1;
 	}
 
-	samples = 2 << exponent;
+	samples = 1 << exponent;
 
 	lengthExponent = (GLUSuint)atoi(argv[10]);
 
@@ -187,7 +187,7 @@ int main(int argc, char* argv[])
 		return -1;
 	}
 
-	length = 2 << lengthExponent;
+	length = 1 << lengthExponent;
 
 	if (roughnessSamples < 2 || roughnessSamples >= 100)
 	{
@@ -688,8 +688,12 @@ int main(int argc, char* argv[])
 
 		    glActiveTexture(GL_TEXTURE1);
 		    glBindTexture(GL_TEXTURE_2D, textureLambert);
-			// Compute shader stores result in given texture.
-			glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, colorBufferLambert);
+
+		    if (roughness == 0.0f)
+		    {
+		    	// Compute shader stores result in given texture.
+		    	glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, colorBufferLambert);
+		    }
 
 		    glActiveTexture(GL_TEXTURE2);
 		    glBindTexture(GL_TEXTURE_2D, textureCookTorrance);
@@ -732,12 +736,18 @@ int main(int argc, char* argv[])
 					{
 						if (isHDR)
 						{
-							hdrOutput[0].data[p * length * stride + q * stride + o] = colorBufferLambert[y * length * 4 + x * 4 + o];
+							if (roughness == 0.0f)
+							{
+								hdrOutput[0].data[p * length * stride + q * stride + o] = colorBufferLambert[y * length * 4 + x * 4 + o];
+							}
 							hdrOutput[1].data[p * length * stride + q * stride + o] = colorBufferCookTorrance[y * length * 4 + x * 4 + o];
 						}
 						else
 						{
-							tgaOutput[0].data[p * length * stride + q * stride + o] = (GLUSubyte)glusClampf(colorBufferLambert[y * length * 4 + x * 4 + o] * 255.0f, 0.0f, 255.0f);
+							if (roughness == 0.0f)
+							{
+								tgaOutput[0].data[p * length * stride + q * stride + o] = (GLUSubyte)glusClampf(colorBufferLambert[y * length * 4 + x * 4 + o] * 255.0f, 0.0f, 255.0f);
+							}
 							tgaOutput[1].data[p * length * stride + q * stride + o] = (GLUSubyte)glusClampf(colorBufferCookTorrance[y * length * 4 + x * 4 + o] * 255.0f, 0.0f, 255.0f);
 						}
 					}
@@ -750,15 +760,21 @@ int main(int argc, char* argv[])
 
 			if (isHDR)
 			{
-				buffer[ouputLength + 10] = 'd';
-				glusSaveHdrImage(buffer, &hdrOutput[0]);
+				if (roughness == 0.0f)
+				{
+					buffer[ouputLength + 10] = 'd';
+					glusSaveHdrImage(buffer, &hdrOutput[0]);
+				}
 				buffer[ouputLength + 10] = 's';
 				glusSaveHdrImage(buffer, &hdrOutput[1]);
 			}
-			else
+			else if (roughness == 0.0f)
 			{
-				buffer[ouputLength + 10] = 'd';
-				glusSaveTgaImage(buffer, &tgaOutput[0]);
+				if (roughness == 0.0f)
+				{
+					buffer[ouputLength + 10] = 'd';
+					glusSaveTgaImage(buffer, &tgaOutput[0]);
+				}
 				buffer[ouputLength + 10] = 's';
 				glusSaveTgaImage(buffer, &tgaOutput[1]);
 			}

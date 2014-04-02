@@ -88,7 +88,7 @@ int main(int argc, char* argv[])
 		return -1;
 	}
 
-	samples = 2 << exponent;
+	samples = 1 << exponent;
 
 	//
 

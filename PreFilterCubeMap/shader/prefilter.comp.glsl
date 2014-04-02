@@ -179,15 +179,21 @@ void main(void)
 	{
 		randomPoint = hammersley(sampleIndex);
 	
-		// Diffuse
-		colorLambert += lightLambert(randomPoint, basis);
+		if (u_roughness == 0.0)
+		{
+			// Diffuse
+			colorLambert += lightLambert(randomPoint, basis);
+		}
 		
 		// Specular
 		// see assumption N = V in Pre-Filtered Environment Map in Real Shading in Unreal Engine 4
 		colorCookTorrance += lightCookTorrance(randomPoint, basis, normal, normal, k); 
 	}
 	
-	imageStore(u_textureLambert, storePos, colorLambert / float(u_samples));
+	if (u_roughness == 0.0)
+	{
+		imageStore(u_textureLambert, storePos, colorLambert / float(u_samples));
+	}
 	
 	imageStore(u_textureCookTorrance, storePos, colorCookTorrance / float(u_samples));
 }

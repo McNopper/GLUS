@@ -35,6 +35,7 @@ int main(int argc, char* argv[])
 	GLUSchar fileType[MAX_FILETYPE_LENGTH];
 
 	GLUSint i, k, m, o, x, y, length, stride, appendIndex;
+	GLUSuint lengthExponent;
 
 	GLUSboolean isHDR = GLUS_FALSE;
 
@@ -56,21 +57,23 @@ int main(int argc, char* argv[])
 
 	if (argc != 3)
 	{
-		printf("Usage: Panorama2CubeMap.exe [Panorama Filename] [Side Length]\n");
+		printf("Usage: Panorama2CubeMap.exe [Panorama Filename] [Length 2^m]\n");
 
 		return -1;
 	}
 
 	//
 
-	length = atoi(argv[2]);
+	lengthExponent = (GLUSuint)atoi(argv[2]);
 
-	if (length <= 0)
+	if (lengthExponent > 16)
 	{
 		printf("Error: Invalid side length.\n");
 
 		return -1;
 	}
+
+	length = 1 << lengthExponent;
 
 	//
 
