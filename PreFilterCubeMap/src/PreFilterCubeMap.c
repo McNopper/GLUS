@@ -101,7 +101,9 @@ int main(int argc, char* argv[])
 	GLUSuint		exponent;
 	GLUSuint		samples;
 
-	GLUSint i, k, m, o, p, q, x, y, ouputLength;
+	GLUSint i, k, m, o, p, q, ouputLength;
+	GLUSuint x = 0;
+	GLUSuint y = 0;
 
 	GLUSboolean isHDR = GLUS_FALSE;
 
@@ -140,7 +142,7 @@ int main(int argc, char* argv[])
 
 	if (argc != 11)
 	{
-		printf("Usage: Panorama2CubeMap.exe [Pos X] [Neg X] [Pos Y] [Neg Y] [Pos Z] [Neg Z] [Output] [Roughness] [Samples 2^m] [Length 2^n]\n");
+		printf("Usage: PreFilterCubeMap.exe [Pos X] [Neg X] [Pos Y] [Neg Y] [Pos Z] [Neg Z] [Output] [Roughness] [Samples 2^m] [Length 2^n]\n");
 
 		return -1;
 	}
@@ -188,14 +190,6 @@ int main(int argc, char* argv[])
 	}
 
 	length = 1 << lengthExponent;
-
-	if (roughnessSamples < 2 || roughnessSamples >= 100)
-	{
-		printf("Error: Invalid roughness value.\n");
-
-		return -1;
-	}
-
 
 	//
 
@@ -768,7 +762,7 @@ int main(int argc, char* argv[])
 				buffer[ouputLength + 10] = 's';
 				glusSaveHdrImage(buffer, &hdrOutput[1]);
 			}
-			else if (roughness == 0.0f)
+			else
 			{
 				if (roughness == 0.0f)
 				{
