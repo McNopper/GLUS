@@ -50,6 +50,24 @@ int main(int argc, char* argv[])
 	GLUSint samplesLocation;
 	GLUSint binaryFractionFactorLocation;
 
+	EGLint eglConfigAttributes[] = {
+	        EGL_RED_SIZE, 8,
+	        EGL_GREEN_SIZE, 8,
+	        EGL_BLUE_SIZE, 8,
+	        EGL_DEPTH_SIZE, 0,
+	        EGL_STENCIL_SIZE, 0,
+	        EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT,
+	        EGL_NONE
+	};
+
+    EGLint eglContextAttributes[] = {
+    		EGL_CONTEXT_MAJOR_VERSION, 4,
+    		EGL_CONTEXT_MINOR_VERSION, 3,
+    		EGL_CONTEXT_OPENGL_FORWARD_COMPATIBLE, EGL_TRUE,
+    		EGL_CONTEXT_OPENGL_PROFILE_MASK, EGL_CONTEXT_OPENGL_CORE_PROFILE_BIT,
+    		EGL_NONE
+    };
+
 	if (argc != 4)
 	{
 		printf("Usage: EnvironmentBRDF.exe [Output] [Length] [Samples 2^m]\n");
@@ -107,9 +125,7 @@ int main(int argc, char* argv[])
 	// Initialize OpenGL, as it is needed for the compute shader.
 	//
 
-	glusPrepareContext(4, 3, GLUS_FORWARD_COMPATIBLE_BIT);
-
-	if (!glusCreateWindow("GLUS Example Window", 512, 512, 0, 0, GLUS_FALSE))
+	if (!glusCreateWindow("GLUS Example Window", 512, 512, GLUS_FALSE, GLUS_FALSE, eglConfigAttributes, eglContextAttributes))
 	{
 		printf("Could not create window!\n");
 
