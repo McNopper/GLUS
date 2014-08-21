@@ -43,7 +43,7 @@ int main(int argc, char* argv[])
 	//
 
 	printf("Loading '%s' ... ", argv[1]);
-	if (!glusLoadTgaImage(argv[1], &tgaimage))
+	if (!glusImageLoadTga(argv[1], &tgaimage))
 	{
 		printf("failed! TGA image could not be loaded.\n");
 
@@ -57,7 +57,7 @@ int main(int argc, char* argv[])
 	{
 		printf("failed! Only 2D images are supported.\n");
 
-		glusDestroyTgaImage(&tgaimage);
+		glusImageDestroyTga(&tgaimage);
 
 		return -1;
 	}
@@ -90,7 +90,7 @@ int main(int argc, char* argv[])
 	{
 		printf("failed! Could not create/open header file.\n");
 
-		glusDestroyTgaImage(&tgaimage);
+		glusImageDestroyTga(&tgaimage);
 
 		return -1;
 	}
@@ -103,7 +103,7 @@ int main(int argc, char* argv[])
 
 		fclose(file);
 
-		glusDestroyTgaImage(&tgaimage);
+		glusImageDestroyTga(&tgaimage);
 
 		return -1;
 	}
@@ -151,7 +151,7 @@ int main(int argc, char* argv[])
 
 	//
 
-	glusDestroyTgaImage(&tgaimage);
+	glusImageDestroyTga(&tgaimage);
 
 	return 0;
 }

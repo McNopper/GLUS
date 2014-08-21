@@ -38,7 +38,7 @@ int main(int argc, char* argv[])
 	GLUSint	length;
 
 	GLUStextfile computeSource;
-	GLUSshaderprogram computeProgram;
+	GLUSprogram computeProgram;
 
 	GLUSuint localSize = 16;
 
@@ -125,14 +125,14 @@ int main(int argc, char* argv[])
 	// Initialize OpenGL, as it is needed for the compute shader.
 	//
 
-	if (!glusCreateWindow("GLUS Example Window", 512, 512, GLUS_FALSE, GLUS_FALSE, eglConfigAttributes, eglContextAttributes))
+	if (!glusWindowCreate("GLUS Example Window", 512, 512, GLUS_FALSE, GLUS_FALSE, eglConfigAttributes, eglContextAttributes))
 	{
 		printf("Could not create window!\n");
 
 		return -1;
 	}
 
-	if (!glusStartup())
+	if (!glusWindowStartup())
 	{
 		return -1;
 	}
@@ -141,11 +141,11 @@ int main(int argc, char* argv[])
 	// Compute shader for pre-filtering.
 	//
 
-	glusLoadTextFile("../EnvironmentBRDF/shader/environmentBRDF.comp.glsl", &computeSource);
+	glusFileLoadText("../EnvironmentBRDF/shader/environmentBRDF.comp.glsl", &computeSource);
 
-	glusBuildComputeProgramFromSource(&computeProgram, (const GLchar**)&computeSource.text);
+	glusProgramBuildComputeFromSource(&computeProgram, (const GLchar**)&computeSource.text);
 
-	glusDestroyTextFile(&computeSource);
+	glusFileDestroyText(&computeSource);
 
 	//
 
@@ -226,7 +226,7 @@ int main(int argc, char* argv[])
 	// Compute shader stores result in given texture.
 	glGetTexImage(GL_TEXTURE_2D, 0, GL_RG, GL_FLOAT, binaryfile.binary);
 
-	glusSaveBinaryFile(buffer, &binaryfile);
+	glusFileSaveBinary(buffer, &binaryfile);
 
 	printf("completed!\n");
 
@@ -234,9 +234,9 @@ int main(int argc, char* argv[])
 	// Freeing resources
 	//
 
-	glusDestroyBinaryFile(&binaryfile);
+	glusFileDestroyBinary(&binaryfile);
 
-	glusDestroyProgram(&computeProgram);
+	glusProgramDestroy(&computeProgram);
 
     glBindTexture(GL_TEXTURE_2D, 0);
 
@@ -251,7 +251,7 @@ int main(int argc, char* argv[])
 	// Shutdown OpenGL.
 	//
 
-	glusShutdown();
+	glusWindowShutdown();
 
 	return 0;
 }

@@ -36,7 +36,7 @@ static GLUSvoid freeTgaImages(GLUSint currentElement)
 
 	for (i = 0; i < currentElement; i++)
 	{
-		glusDestroyTgaImage(&g_tgaimage[i]);
+		glusImageDestroyTga(&g_tgaimage[i]);
 	}
 }
 
@@ -46,7 +46,7 @@ static GLUSvoid freeHdrImages(GLUSint currentElement)
 
 	for (i = 0; i < currentElement; i++)
 	{
-		glusDestroyHdrImage(&g_hdrimage[i]);
+		glusImageDestroyHdr(&g_hdrimage[i]);
 	}
 }
 
@@ -126,7 +126,7 @@ int main(int argc, char* argv[])
 	GLUSfloat matrix[9];
 
 	GLUStextfile computeSource;
-	GLUSshaderprogram computeProgram;
+	GLUSprogram computeProgram;
 
 	GLUSuint localSize = 16;
 
@@ -242,7 +242,7 @@ int main(int argc, char* argv[])
 
 		for (i = 0; i < 6; i++)
 		{
-			if (!glusLoadTgaImage(argv[1 + i], &g_tgaimage[i]))
+			if (!glusImageLoadTga(argv[1 + i], &g_tgaimage[i]))
 			{
 				printf("failed! TGA image could not be loaded.\n");
 
@@ -315,7 +315,7 @@ int main(int argc, char* argv[])
 
 			freeTgaImages(6);
 
-			glusDestroyTgaImage(&tgaOutput[0]);
+			glusImageDestroyTga(&tgaOutput[0]);
 
 			return -1;
 		}
@@ -326,7 +326,7 @@ int main(int argc, char* argv[])
 
 		for (i = 0; i < 6; i++)
 		{
-			if (!glusLoadHdrImage(argv[1 + i], &g_hdrimage[i]))
+			if (!glusImageLoadHdr(argv[1 + i], &g_hdrimage[i]))
 			{
 				printf("failed! HDR image could not be loaded.\n");
 
@@ -392,7 +392,7 @@ int main(int argc, char* argv[])
 
 			freeHdrImages(6);
 
-			glusDestroyHdrImage(&hdrOutput[1]);
+			glusImageDestroyHdr(&hdrOutput[1]);
 
 			return -1;
 		}
@@ -451,13 +451,13 @@ int main(int argc, char* argv[])
 	// Initialize OpenGL, as it is needed for the compute shader.
 	//
 
-	if (!glusCreateWindow("GLUS Example Window", 512, 512, GLUS_FALSE, GLUS_FALSE, eglConfigAttributes, eglContextAttributes))
+	if (!glusWindowCreate("GLUS Example Window", 512, 512, GLUS_FALSE, GLUS_FALSE, eglConfigAttributes, eglContextAttributes))
 	{
 		printf("Could not create window!\n");
 		return -1;
 	}
 
-	if (!glusStartup())
+	if (!glusWindowStartup())
 	{
 		return -1;
 	}
@@ -466,11 +466,11 @@ int main(int argc, char* argv[])
 	// Compute shader for pre-filtering.
 	//
 
-	glusLoadTextFile("../PreFilterCubeMap/shader/prefilter.comp.glsl", &computeSource);
+	glusFileLoadText("../PreFilterCubeMap/shader/prefilter.comp.glsl", &computeSource);
 
-	glusBuildComputeProgramFromSource(&computeProgram, (const GLchar**)&computeSource.text);
+	glusProgramBuildComputeFromSource(&computeProgram, (const GLchar**)&computeSource.text);
 
-	glusDestroyTextFile(&computeSource);
+	glusFileDestroyText(&computeSource);
 
 	//
 
@@ -756,9 +756,9 @@ int main(int argc, char* argv[])
 						{
 							if (roughness == 0.0f)
 							{
-								tgaOutput[0].data[p * length * stride + q * stride + o] = (GLUSubyte)glusClampf(colorBufferLambert[y * length * 4 + x * 4 + o] * 255.0f, 0.0f, 255.0f);
+								tgaOutput[0].data[p * length * stride + q * stride + o] = (GLUSubyte)glusMathClampf(colorBufferLambert[y * length * 4 + x * 4 + o] * 255.0f, 0.0f, 255.0f);
 							}
-							tgaOutput[1].data[p * length * stride + q * stride + o] = (GLUSubyte)glusClampf(colorBufferCookTorrance[y * length * 4 + x * 4 + o] * 255.0f, 0.0f, 255.0f);
+							tgaOutput[1].data[p * length * stride + q * stride + o] = (GLUSubyte)glusMathClampf(colorBufferCookTorrance[y * length * 4 + x * 4 + o] * 255.0f, 0.0f, 255.0f);
 						}
 					}
 				}
@@ -773,20 +773,20 @@ int main(int argc, char* argv[])
 				if (roughness == 0.0f)
 				{
 					buffer[ouputLength + 10] = 'd';
-					glusSaveHdrImage(buffer, &hdrOutput[0]);
+					glusImageSaveHdr(buffer, &hdrOutput[0]);
 				}
 				buffer[ouputLength + 10] = 's';
-				glusSaveHdrImage(buffer, &hdrOutput[1]);
+				glusImageSaveHdr(buffer, &hdrOutput[1]);
 			}
 			else
 			{
 				if (roughness == 0.0f)
 				{
 					buffer[ouputLength + 10] = 'd';
-					glusSaveTgaImage(buffer, &tgaOutput[0]);
+					glusImageSaveTga(buffer, &tgaOutput[0]);
 				}
 				buffer[ouputLength + 10] = 's';
-				glusSaveTgaImage(buffer, &tgaOutput[1]);
+				glusImageSaveTga(buffer, &tgaOutput[1]);
 			}
 		}
 	}
@@ -802,7 +802,7 @@ int main(int argc, char* argv[])
 
 	free(colorBufferCookTorrance);
 
-	glusDestroyProgram(&computeProgram);
+	glusProgramDestroy(&computeProgram);
 
     glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
 
@@ -832,13 +832,13 @@ int main(int argc, char* argv[])
 
     if (isHDR)
     {
-    	glusDestroyHdrImage(&hdrOutput[0]);
-    	glusDestroyHdrImage(&hdrOutput[1]);
+    	glusImageDestroyHdr(&hdrOutput[0]);
+    	glusImageDestroyHdr(&hdrOutput[1]);
     }
     else
     {
-    	glusDestroyTgaImage(&tgaOutput[0]);
-    	glusDestroyTgaImage(&tgaOutput[1]);
+    	glusImageDestroyTga(&tgaOutput[0]);
+    	glusImageDestroyTga(&tgaOutput[1]);
     }
 
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
@@ -854,7 +854,7 @@ int main(int argc, char* argv[])
 	// Shutdown OpenGL.
 	//
 
-	glusShutdown();
+	glusWindowShutdown();
 
 	return 0;
 }

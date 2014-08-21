@@ -113,7 +113,7 @@ int main(int argc, char* argv[])
 	printf("Loading '%s' ... ", argv[1]);
 	if (strcmp(fileType, ".tga") == 0)
 	{
-		if (!glusLoadTgaImage(argv[1], &tgaimage))
+		if (!glusImageLoadTga(argv[1], &tgaimage))
 		{
 			printf("failed! TGA image could not be loaded.\n");
 
@@ -146,10 +146,10 @@ int main(int argc, char* argv[])
 
 				for (k = i - 1; k >= 0; k--)
 				{
-					glusDestroyTgaImage(&tgaCubeMap[k]);
+					glusImageDestroyTga(&tgaCubeMap[k]);
 				}
 
-				glusDestroyTgaImage(&tgaimage);
+				glusImageDestroyTga(&tgaimage);
 
 				return -1;
 			}
@@ -157,7 +157,7 @@ int main(int argc, char* argv[])
 	}
 	else if (strcmp(fileType, ".hdr") == 0)
 	{
-		if (!glusLoadHdrImage(argv[1], &hdrimage))
+		if (!glusImageLoadHdr(argv[1], &hdrimage))
 		{
 			printf("failed! HDR image could not be loaded.\n");
 
@@ -183,10 +183,10 @@ int main(int argc, char* argv[])
 
 				for (k = i - 1; k >= 0; k--)
 				{
-					glusDestroyHdrImage(&hdrCubeMap[k]);
+					glusImageDestroyHdr(&hdrCubeMap[k]);
 				}
 
-				glusDestroyHdrImage(&hdrimage);
+				glusImageDestroyHdr(&hdrimage);
 
 				return -1;
 			}
@@ -301,7 +301,7 @@ int main(int argc, char* argv[])
 
 				if (isHDR)
 				{
-					glusTexImage2DSampleHdrImage(rgb, &hdrimage, st);
+					glusImageSampleHdr2D(rgb, &hdrimage, st);
 
 					for (o = 0; o < stride; o++)
 					{
@@ -310,7 +310,7 @@ int main(int argc, char* argv[])
 				}
 				else
 				{
-					glusTexImage2DSampleTgaImage(rgba, &tgaimage, st);
+					glusImageSampleTga2D(rgba, &tgaimage, st);
 
 					for (o = 0; o < stride; o++)
 					{
@@ -398,25 +398,25 @@ int main(int argc, char* argv[])
 
 		if (isHDR)
 		{
-			glusSaveHdrImage(buffer, &hdrCubeMap[i]);
+			glusImageSaveHdr(buffer, &hdrCubeMap[i]);
 
-			glusDestroyHdrImage(&hdrCubeMap[i]);
+			glusImageDestroyHdr(&hdrCubeMap[i]);
 		}
 		else
 		{
-			glusSaveTgaImage(buffer, &tgaCubeMap[i]);
+			glusImageSaveTga(buffer, &tgaCubeMap[i]);
 
-			glusDestroyTgaImage(&tgaCubeMap[i]);
+			glusImageDestroyTga(&tgaCubeMap[i]);
 		}
 	}
 
 	if (isHDR)
 	{
-		glusDestroyHdrImage(&hdrimage);
+		glusImageDestroyHdr(&hdrimage);
 	}
 	else
 	{
-		glusDestroyTgaImage(&tgaimage);
+		glusImageDestroyTga(&tgaimage);
 	}
 	printf("completed!\n");
 

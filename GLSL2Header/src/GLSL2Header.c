@@ -47,7 +47,7 @@ int main(int argc, char* argv[])
 	//
 
 	printf("Loading '%s' ... ", argv[1]);
-	if (!glusLoadTextFile(argv[1], &glslfile))
+	if (!glusFileLoadText(argv[1], &glslfile))
 	{
 		printf("failed! GLSL file could not be loaded.\n");
 
@@ -65,7 +65,7 @@ int main(int argc, char* argv[])
 	{
 		printf("failed! Could not create/open header file.\n");
 
-		glusDestroyTextFile(&glslfile);
+		glusFileDestroyText(&glslfile);
 
 		return -1;
 	}
@@ -80,7 +80,7 @@ int main(int argc, char* argv[])
 
 		fclose(file);
 
-		glusDestroyTextFile(&glslfile);
+		glusFileDestroyText(&glslfile);
 
 		return -1;
 	}
@@ -177,7 +177,7 @@ int main(int argc, char* argv[])
 
 	//
 
-	glusDestroyTextFile(&glslfile);
+	glusFileDestroyText(&glslfile);
 
 	return 0;
 }
