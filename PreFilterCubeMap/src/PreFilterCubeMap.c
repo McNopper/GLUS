@@ -19,6 +19,8 @@
 
 #include "GL/glus.h"
 
+#define MAX_ROUGHNESS 100
+
 #define MAX_FILENAME_LENGTH		1024	// with '\0'
 #define MAX_FILETYPE_LENGTH		5		// with '\0'
 #define SIDE_NAMING_LENGTH		6		// without '\0'
@@ -110,6 +112,8 @@ int main(int argc, char* argv[])
 	GLUStgaimage tgaOutput[2];
 	GLUShdrimage hdrOutput[2];
 
+	GLUSboolean	mipMap;
+
 	GLUSint	length;
 	GLUSint	lengthExponent;
 	GLUSint	stride;
@@ -131,7 +135,7 @@ int main(int argc, char* argv[])
 	GLUSuint localSize = 16;
 
 	GLUSuint textureLambert;
-	GLUSuint textureCookTorrance;
+	GLUSuint textureCookTorrance[MAX_ROUGHNESS];
 
 	GLUSuint scanVectorsSSBO;
 
@@ -158,9 +162,9 @@ int main(int argc, char* argv[])
     		EGL_NONE
     };
 
-	if (argc != 11)
+	if (argc != 12)
 	{
-		printf("Usage: PreFilterCubeMap.exe [Pos X] [Neg X] [Pos Y] [Neg Y] [Pos Z] [Neg Z] [Output] [Roughness] [Samples 2^m] [Length 2^n]\n");
+		printf("Usage: PreFilterCubeMap.exe [Pos X] [Neg X] [Pos Y] [Neg Y] [Pos Z] [Neg Z] [Output] [Roughness] [Samples 2^m] [Length 2^n] [As MipMap]\n");
 
 		return -1;
 	}
@@ -180,7 +184,7 @@ int main(int argc, char* argv[])
 
 	roughnessSamples = atoi(argv[8]);
 
-	if (roughnessSamples < 2 || roughnessSamples >= 100)
+	if (roughnessSamples < 2 || roughnessSamples >= MAX_ROUGHNESS)
 	{
 		printf("Error: Invalid roughness value.\n");
 
@@ -208,6 +212,15 @@ int main(int argc, char* argv[])
 	}
 
 	length = 1 << lengthExponent;
+
+	mipMap = (GLUSuint)atoi(argv[11]) != 0;
+
+	if (mipMap && roughnessSamples - 1 > lengthExponent)
+	{
+		printf("Error: Can not do mip mapping with given roughness and length.\n");
+
+		return -1;
+	}
 
 	//
 
@@ -520,22 +533,47 @@ int main(int argc, char* argv[])
 
 	//
 
-	// Prepare texture, where the pre-filtered image is stored: Cook-Torrance
-    glGenTextures(1, &textureCookTorrance);
-    glActiveTexture(GL_TEXTURE2);
-    glBindTexture(GL_TEXTURE_2D, textureCookTorrance);
+	if (mipMap)
+	{
+		// Prepare texture, where the pre-filtered image is stored: Cook-Torrance
+		glGenTextures(roughnessSamples, textureCookTorrance);
 
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, length, length, 0, GL_RGBA, GL_FLOAT, 0);
+		for (i = 0; i < roughnessSamples; i++)
+		{
+			glActiveTexture(GL_TEXTURE2);
+			glBindTexture(GL_TEXTURE_2D, textureCookTorrance[i]);
 
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, length, length, 0, GL_RGBA, GL_FLOAT, 0);
 
-    // see binding = 2 in the shader
-    glBindImageTexture(2, textureCookTorrance, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-	glPixelStorei(GL_PACK_ALIGNMENT, 1);
+			length /= 2;
+		}
+
+		length = 1 << lengthExponent;
+	}
+	else
+	{
+		// Prepare texture, where the pre-filtered image is stored: Cook-Torrance
+		glGenTextures(1, textureCookTorrance);
+		glActiveTexture(GL_TEXTURE2);
+		glBindTexture(GL_TEXTURE_2D, textureCookTorrance[0]);
+
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, length, length, 0, GL_RGBA, GL_FLOAT, 0);
+
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+		// see binding = 2 in the shader
+		glBindImageTexture(2, textureCookTorrance[0], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
+
+		glPixelStorei(GL_PACK_ALIGNMENT, 1);
+	}
 
 	//
 	//
@@ -663,28 +701,67 @@ int main(int argc, char* argv[])
 			break;
 		}
 
-		// Generate scan vectors
-		for (k = 0; k < length; k++)
+		if (!mipMap)
 		{
-			for (m = 0; m < length; m++)
+			// Generate scan vectors
+			for (k = 0; k < length; k++)
 			{
-				offsetVector[0] = 0.0f;
-				offsetVector[1] = offset + step * (GLUSfloat)k;
-				offsetVector[2] = offset + step * (GLUSfloat)m;
+				for (m = 0; m < length; m++)
+				{
+					offsetVector[0] = 0.0f;
+					offsetVector[1] = offset + step * (GLUSfloat)k;
+					offsetVector[2] = offset + step * (GLUSfloat)m;
 
-				glusVector3AddVector3f(normalVector, startVector, offsetVector);
-				glusVector3Normalizef(normalVector);
+					glusVector3AddVector3f(normalVector, startVector, offsetVector);
+					glusVector3Normalizef(normalVector);
 
-				glusMatrix3x3MultiplyVector3f(&scanVectors[k * length * (3 + 1) + m * (3 + 1)], matrix, normalVector);
+					glusMatrix3x3MultiplyVector3f(&scanVectors[k * length * (3 + 1) + m * (3 + 1)], matrix, normalVector);
+				}
 			}
-		}
 
-		// Upload scan vectors for each side.
-		glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, length * length * (3 + 1) * sizeof(GLfloat), scanVectors);
+			// Upload scan vectors for each side.
+			glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, length * length * (3 + 1) * sizeof(GLfloat), scanVectors);
+		}
 
 		// For all roughness levels
 		for (k = 0; k < roughnessSamples; k++)
 		{
+			if (mipMap)
+			{
+				if (isHDR)
+				{
+					hdrOutput[1].width = length;
+					hdrOutput[1].height = length;
+				}
+				else
+				{
+					tgaOutput[1].width = length;
+					tgaOutput[1].height = length;
+				}
+
+				step = 2.0f / (GLUSfloat)length;
+				offset = step * 0.5f;
+
+				// Generate scan vectors
+				for (m = 0; m < length; m++)
+				{
+					for (o = 0; o < length; o++)
+					{
+						offsetVector[0] = 0.0f;
+						offsetVector[1] = offset + step * (GLUSfloat)m;
+						offsetVector[2] = offset + step * (GLUSfloat)o;
+
+						glusVector3AddVector3f(normalVector, startVector, offsetVector);
+						glusVector3Normalizef(normalVector);
+
+						glusMatrix3x3MultiplyVector3f(&scanVectors[m * length * (3 + 1) + o * (3 + 1)], matrix, normalVector);
+					}
+				}
+
+				// Upload scan vectors for each side.
+				glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, length * length * (3 + 1) * sizeof(GLfloat), scanVectors);
+			}
+
 			// Calculate roughness ...
 			roughness = (GLUSfloat)k * 1.0f / (GLUSfloat)(roughnessSamples - 1);
 
@@ -692,6 +769,14 @@ int main(int argc, char* argv[])
 
 			// ... and set it up for compute shader.
 			glUniform1f(roughnessLocation, roughness);
+
+		    if (mipMap)
+		    {
+		    	// see binding = 2 in the shader
+		    	glBindImageTexture(2, textureCookTorrance[k], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
+
+		    	glPixelStorei(GL_PACK_ALIGNMENT, 1);
+		    }
 
 			// Run the compute shader, which is doing the pre-filtering.
 			glDispatchCompute(length / localSize, length / localSize, 1);
@@ -706,7 +791,15 @@ int main(int argc, char* argv[])
 		    }
 
 		    glActiveTexture(GL_TEXTURE2);
-		    glBindTexture(GL_TEXTURE_2D, textureCookTorrance);
+		    if (mipMap)
+		    {
+		    	glBindTexture(GL_TEXTURE_2D, textureCookTorrance[k]);
+		    }
+		    else
+		    {
+		    	glBindTexture(GL_TEXTURE_2D, textureCookTorrance[0]);
+		    }
+
 			// Compute shader stores result in given texture.
 			glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, colorBufferCookTorrance);
 
@@ -788,6 +881,16 @@ int main(int argc, char* argv[])
 				buffer[ouputLength + 10] = 's';
 				glusImageSaveTga(buffer, &tgaOutput[1]);
 			}
+
+			if (mipMap)
+			{
+				length /= 2;
+			}
+		}
+
+		if (mipMap)
+		{
+			length = 1 << lengthExponent;
 		}
 	}
 	printf("completed!\n");
@@ -822,13 +925,19 @@ int main(int argc, char* argv[])
         textureLambert = 0;
     }
 
-    if (textureCookTorrance)
+    if (!mipMap)
     {
-        glDeleteTextures(1, &textureCookTorrance);
+		if (textureCookTorrance[0])
+		{
+			glDeleteTextures(1, textureCookTorrance);
 
-        textureCookTorrance = 0;
+			textureCookTorrance[0] = 0;
+		}
     }
-
+    else
+    {
+		glDeleteTextures(roughnessSamples, textureCookTorrance);
+    }
 
     if (isHDR)
     {
