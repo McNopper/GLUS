@@ -125,7 +125,7 @@ int main(int argc, char* argv[])
 	// Initialize OpenGL, as it is needed for the compute shader.
 	//
 
-	if (!glusWindowCreate("GLUS Example Window", 512, 512, GLUS_FALSE, GLUS_FALSE, eglConfigAttributes, eglContextAttributes))
+	if (!glusWindowCreate("GLUS Example Window", 512, 512, GLUS_FALSE, GLUS_FALSE, eglConfigAttributes, eglContextAttributes, 0))
 	{
 		printf("Could not create window!\n");
 
