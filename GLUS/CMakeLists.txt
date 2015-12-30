@@ -12,6 +12,11 @@ cmake_minimum_required(VERSION 2.6)
 
 project(GLUS)
 
+find_package(GLEW REQUIRED)
+find_package(PkgConfig)
+pkg_search_module(GLFW REQUIRED glfw3)
+
+
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 	# Mac OS X
 
@@ -182,4 +187,44 @@ ELSE()
 	
 ENDIF()
 
-add_library(GLUS ${C_FILES} ${H_FILES})
+add_library(GLUS_static ${C_FILES} ${H_FILES})
+target_link_libraries(GLUS_static ${GLEW_LIBRARIES} ${GLFW_LDFLAGS})
+add_library(GLUS SHARED ${C_FILES} ${H_FILES})
+target_link_libraries(GLUS ${GLEW_LIBRARIES} ${GLFW_LDFLAGS})
+
+install (TARGETS GLUS GLUS_static
+	LIBRARY DESTINATION lib
+	ARCHIVE DESTINATION lib
+)
+
+install(DIRECTORY 
+        ${GLUS_SOURCE_DIR}/src/GL 
+        ${GLUS_SOURCE_DIR}/src/GLES2
+        ${GLUS_SOURCE_DIR}/src/GLES3
+        ${GLUS_SOURCE_DIR}/src/GLUS
+        DESTINATION include
+)
+
+if(EXISTS "${GLUS_SOURCE_DIR}/GLUS.pc.in")
+    message(STATUS "configuring ${GLUS_SOURCE_DIR}/GLUS.pc.in --> ${CMAKE_CURRENT_BINARY_DIR}/GLUS.pc")
+
+    # build a list of -D<...> macros to store in pkgconfig CFlags
+    get_directory_property(INTERNAL_COMPILE_FLAGS COMPILE_DEFINITIONS)
+    foreach(DEF ${INTERNAL_COMPILE_FLAGS})
+        set(COMPILE_FLAGS "${COMPILE_FLAGS} -D${DEF}")
+    endforeach()
+
+    configure_file(${GLUS_SOURCE_DIR}/GLUS.pc.in 
+        ${CMAKE_CURRENT_BINARY_DIR}/GLUS.pc
+      @ONLY )
+
+    install(FILES
+        ${CMAKE_CURRENT_BINARY_DIR}/GLUS.pc
+        DESTINATION lib/pkgconfig
+    )
+else()
+    message(STATUS "${GLUS_SOURCE_DIR}/GLUS.pc.in not found!")
+
+endif()
+
+
