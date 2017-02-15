@@ -6,7 +6,6 @@ The cross platform and cross Graphic Library UtilitieS (GLUS) is an open-source 
 
 ## Download
 
-Visit [GLUS repository on GitHub](https://github.com/McNopper/GLUS) for the GLUS library source code.  
 Visit [OpenGL repository on GitHub](https://github.com/McNopper/OpenGL) for the GLUS library plus many OpenGL 3 and 4 examples source code.  
 Visit [OpenGL ES repository on GitHub](https://github.com/McNopper/OpenGL_ES) for the GLUS library plus OpenGL ES 2.0, 3.0 and 3.1 examples source code.  
 Visit [OpenVG repository on GitHub](https://github.com/McNopper/OpenVG) for the GLUS library plus OpenVG 1.1 examples source code.  
@@ -57,16 +56,17 @@ GLUS is written in ANSI C and uses [GLFW](http://www.glfw.org/) and [GLEW](http:
 
 The following source code shows a minimal OpenGL 3.2 program using GLUS:
 
-<tt>/**  
-* Include GLUS. Needed OpenGL, OpenGL ES or OpenVG headers will be included depending on the build profile.  
-*/  
+```
+/**  
+ * Include GLUS. Needed OpenGL, OpenGL ES or OpenVG headers will be included depending on the build profile.  
+ */  
 #include "GL/glus.h"  
 
 /**  
-* Function for initialization.  
-*  
-* @return GLUS_TRUE when initalization succeeded, otherwise GLUS_FALSE and the application will exit.  
-*/  
+ * Function for initialization.  
+ *  
+ * @return GLUS_TRUE when initalization succeeded, otherwise GLUS_FALSE and the application will exit.  
+ */  
 GLUSboolean init(GLUSvoid)  
 {  
     // The background will be just cleared with blue color.  
@@ -76,11 +76,11 @@ GLUSboolean init(GLUSvoid)
 }  
 
 /**  
-* Function is called before first update and every time when the window is resized.  
-*  
-* @param width  The width of the window.  
-* @param height The height of the window.  
-*/  
+ * Function is called before first update and every time when the window is resized.  
+ *  
+ * @param width  The width of the window.  
+ * @param height The height of the window.  
+ */  
 GLUSvoid reshape(GLUSint width, GLUSint height)  
 {  
     // Set the viewport depending on the width and height of the window.  
@@ -88,12 +88,12 @@ GLUSvoid reshape(GLUSint width, GLUSint height)
 }  
 
 /**  
-* Function to update and render content. Swapping of the buffers is automatically done.  
-*  
-* @param time The passed / delta time from last frame.  
-*  
-* @return GLUS_TRUE for continuing, GLUS_FALSE to exit the application.  
-*/  
+ * Function to update and render content. Swapping of the buffers is automatically done.  
+ *  
+ * @param time The passed / delta time from last frame.  
+ *  
+ * @return GLUS_TRUE for continuing, GLUS_FALSE to exit the application.  
+ */  
 GLUSboolean update(GLUSfloat time)  
 {  
     // Now, the background is painted blue.  
@@ -103,16 +103,16 @@ GLUSboolean update(GLUSfloat time)
 }  
 
 /**  
-* Function to clean up things.  
-*/  
+ * Function to clean up things.  
+ */  
 GLUSvoid terminate(GLUSvoid)  
 {  
     // No resources have to be freed in this case.  
 }  
 
 /**  
-* Main entry point.  
-*/  
+ * Main entry point.  
+ */  
 int main(int argc, char* argv[])  
 {  
     // Parameters for the used window surface. See EGL man pages for more info.  
@@ -154,7 +154,7 @@ int main(int argc, char* argv[])
 
     return 0;  
 }  
-</tt>
+```
 
 The live time of an application using GLUS is showed in the following state machine:  
 ![GLUS state machine](glus_state_machine.png)
