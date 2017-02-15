@@ -165,7 +165,7 @@ The different parameters on how to initialize and use GLUS can be found in the d
 *   [OpenGL ES 2.0, 3.0 and 3.1 examples](https://github.com/McNopper/OpenGL_ES)
 *   [OpenVG 1.1 examples](https://github.com/McNopper/OpenVG)
 
-Visit the [GLUS man pages](docs/) for the documentation of each available function.
+Visit the [GLUS man pages](http://nopper.tv/GLUS/docs/) for the documentation of each available function.
 
 * * *
 
