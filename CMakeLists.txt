@@ -159,3 +159,52 @@ ENDIF()
 
 add_library(GLUS ${C_FILES} ${H_FILES})
 target_include_directories (GLUS PUBLIC ${GLUS_SOURCE_DIR}/src)
+
+# Desktop OpenGL needs GLEW and GLFW. When GLUS is built standalone these are
+# fetched automatically. When GLUS is added by a parent project that already
+# provides them (e.g. the McNopper/OpenGL examples), the existing targets are reused.
+IF(NOT (${OpenGL} MATCHES "ES"))
+
+	include(FetchContent)
+
+	if(NOT TARGET glfw)
+		set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+		set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+		set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+		set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
+
+		FetchContent_Declare(
+			glfw
+			GIT_REPOSITORY https://github.com/glfw/glfw.git
+			GIT_TAG        3.4
+		)
+		FetchContent_MakeAvailable(glfw)
+	endif()
+
+	if(NOT TARGET libglew_static)
+		set(glew-cmake_BUILD_SHARED OFF CACHE BOOL "" FORCE)
+		set(glew-cmake_BUILD_STATIC ON CACHE BOOL "" FORCE)
+		set(ONLY_LIBS ON CACHE BOOL "" FORCE)
+
+		FetchContent_Declare(
+			glew
+			GIT_REPOSITORY https://github.com/Perlmint/glew-cmake.git
+			GIT_TAG        glew-cmake-2.2.0
+		)
+
+		FetchContent_GetProperties(glew)
+		if(NOT glew_POPULATED)
+			FetchContent_Populate(glew)
+			# Patch the CMakeLists.txt to use a modern CMake version
+			file(READ "${glew_SOURCE_DIR}/CMakeLists.txt" GLEW_CMAKE_CONTENT)
+			string(REPLACE "cmake_minimum_required(VERSION 2.8.12)" "cmake_minimum_required(VERSION 3.5)" GLEW_CMAKE_CONTENT "${GLEW_CMAKE_CONTENT}")
+			file(WRITE "${glew_SOURCE_DIR}/CMakeLists.txt" "${GLEW_CMAKE_CONTENT}")
+			add_subdirectory(${glew_SOURCE_DIR} ${glew_BINARY_DIR})
+		endif()
+
+		target_include_directories(GLUS PUBLIC ${glew_SOURCE_DIR}/include)
+	endif()
+
+	target_link_libraries(GLUS PUBLIC libglew_static glfw)
+
+ENDIF()

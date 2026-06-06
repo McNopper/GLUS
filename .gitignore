@@ -6,3 +6,11 @@
 /x86_PowerVR_Windows_GLES2_MinGW_Debug/
 /x86_PowerVR_Windows_GLES31_MinGW_Debug/
 /ARMv7_Vivante_Linux_GLES2_GCC_Release/
+
+# CMake build artifacts
+build/
+_deps/
+lib/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
