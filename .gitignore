@@ -1,55 +1,8 @@
-# Prerequisites
-*.d
-
-# Object files
-*.o
-*.ko
-*.obj
-*.elf
-
-# Linker output
-*.ilk
-*.map
-*.exp
-
-# Precompiled Headers
-*.gch
-*.pch
-
-# Libraries
-*.lib
-*.a
-*.la
-*.lo
-
-# Shared objects (inc. Windows DLLs)
-*.dll
-*.so
-*.so.*
-*.dylib
-
-# Executables
-*.exe
-*.out
-*.app
-*.i*86
-*.x86_64
-*.hex
-
-# Debug files
-*.dSYM/
-*.su
-*.idb
-*.pdb
-
-# Kernel Module Compile Results
-*.mod*
-*.cmd
-.tmp_versions/
-modules.order
-Module.symvers
-Mkfile.old
-dkms.conf
-
-# debug information files
-*.dwo
+/ARMv7_Vivante_Linux_GLES3_GCC_Release
+/ARMv7_Vivante_Linux_VG11_GCC_Release
+/x86_PowerVR_Windows_GLES3_MinGW_Debug/
+/x86__Windows__MinGW_Debug/
+/x86_Khronos_Windows_VG11_MinGW_Debug/
+/x86_PowerVR_Windows_GLES2_MinGW_Debug/
+/x86_PowerVR_Windows_GLES31_MinGW_Debug/
+/ARMv7_Vivante_Linux_GLES2_GCC_Release/
