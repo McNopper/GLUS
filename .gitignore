@@ -1,12 +1,3 @@
-/ARMv7_Vivante_Linux_GLES3_GCC_Release
-/ARMv7_Vivante_Linux_VG11_GCC_Release
-/x86_PowerVR_Windows_GLES3_MinGW_Debug/
-/x86__Windows__MinGW_Debug/
-/x86_Khronos_Windows_VG11_MinGW_Debug/
-/x86_PowerVR_Windows_GLES2_MinGW_Debug/
-/x86_PowerVR_Windows_GLES31_MinGW_Debug/
-/ARMv7_Vivante_Linux_GLES2_GCC_Release/
-
 # CMake build artifacts
 build/
 _deps/
@@ -14,3 +5,11 @@ lib/
 CMakeCache.txt
 CMakeFiles/
 cmake_install.cmake
+
+# Doxygen generated documentation
+docs/html/
+docs/latex/
+
+# Android NDK build artifacts
+Android/obj/
+Android/libs/
