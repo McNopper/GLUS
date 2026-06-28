@@ -6,6 +6,21 @@ It provides window/context creation, math helpers, image and model loading,
 shader utilities and more. GLUS lives in its own repository and is used by the
 [McNopper/OpenGL](https://github.com/McNopper/OpenGL) examples.
 
+## Changelog
+
+### v1.0.1
+
+- Fixed two sign errors in the band-3 spherical-harmonics rotation
+  (`glusSHBuildRotation3f`) that made the band-3 matrix non-orthogonal. Verified
+  (orthogonality, group homomorphism, equivariance) against
+  [andrewwillmott/sh-lib](https://github.com/andrewwillmott/sh-lib).
+- Documented the SH rotation basis/convention in `glus_sh.h` (standard real SH;
+  bridge to the Inria/3DGS/glTF sign convention via the Condon-Shortley phase).
+
+### v1.0.0
+
+- Initial public release.
+
 ## Prerequisites
 
 - **CMake 3.14 or higher** - [Download CMake](https://cmake.org/download/)
