@@ -8,6 +8,23 @@ shader utilities and more. GLUS lives in its own repository and is used by the
 
 ## Changelog
 
+### v1.1.0
+
+- Added a **glTF 2.0 core loader** module (`glus_gltf.h` / `glus_gltf.c`):
+  parses `.glb` / `.gltf` via cgltf and uploads render-ready primitives that
+  match the GLUS glTF PBR shaders. Covers the full core spec — scenes / node
+  hierarchy (TRS and matrix), meshes (all primitive modes), PBR
+  metallic-roughness materials, textures / samplers / images (external, GLB
+  embedded and `data:` URIs), sparse accessors, skins, TRS animation
+  (STEP / LINEAR / CUBICSPLINE), morph targets and cameras. Khronos / vendor
+  extensions are **not** interpreted by GLUS; the parsed cgltf tree stays
+  reachable through `glusGltfGetCgltfData()` so each application can read the
+  extension data it needs (e.g. `KHR_gaussian_splatting`) itself.
+- GLUS now fetches **cgltf** and **stb** (stb_image) and exposes their include
+  directories publicly, and defines **`GLUS_SHADER_DIR`** (the absolute path to
+  GLUS' `shader/` directory) so applications load the glTF / IBL shaders
+  straight from this source tree.
+
 ### v1.0.1
 
 - Fixed two sign errors in the band-3 spherical-harmonics rotation
@@ -64,9 +81,26 @@ via CMake `FetchContent` - no manual installation required:
 
 - **GLFW 3.4** - https://github.com/glfw/glfw - window and input management
 - **GLEW 2.2.0** - https://github.com/Perlmint/glew-cmake - OpenGL extension loading
+- **cgltf v1.14** - https://github.com/jkuhlmann/cgltf - glTF 2.0 parser (used by the glTF loader)
+- **stb** (stb_image) - https://github.com/nothings/stb - image decoding (used by the glTF loader)
 
 When GLUS is added to a parent project that already provides these targets, the
 existing ones are reused instead of being fetched again.
+
+## Third-Party Licenses
+
+GLUS is MIT licensed (see [LICENSE](LICENSE)). The desktop OpenGL build depends
+on the following third-party projects, which are fetched automatically and are
+**not** part of the GLUS source tree:
+
+- **GLFW 3.4** - https://github.com/glfw/glfw - zlib/libpng license
+- **GLEW 2.2.0** (via [glew-cmake](https://github.com/Perlmint/glew-cmake)) - MIT / BSD
+- **cgltf v1.14** - https://github.com/jkuhlmann/cgltf - MIT (Copyright (c) 2018-2021 Johannes Kuhlmann). Compiled into the GLUS static library through `CGLTF_IMPLEMENTATION` by the glTF loader (`glus_gltf.c`).
+- **stb / stb_image** - https://github.com/nothings/stb - MIT / Public Domain (Copyright (c) 2017 Sean Barrett). Compiled into the GLUS static library through `STB_IMAGE_IMPLEMENTATION` by the glTF loader (`glus_gltf.c`).
+
+Because cgltf and stb_image are compiled into `GLUS`, their copyright and
+permission notices are redistributed with any binary that links GLUS, as
+required by their licenses.
 
 ## OpenGL ES / OpenVG
 

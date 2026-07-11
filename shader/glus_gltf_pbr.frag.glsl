@@ -18,6 +18,8 @@
 #version 460 core
 
 // PBR metallic-roughness + IBL (split-sum approximation).
+// Supports two UV sets (per-texture selection), vertex colors, normal-map
+// scale and the glTF alpha modes.
 
 uniform sampler2D u_baseColorTexture;
 uniform sampler2D u_metallicRoughnessTexture;
@@ -35,9 +37,17 @@ uniform float u_metallicFactor;
 uniform float u_roughnessFactor;
 uniform vec3  u_emissiveFactor;
 uniform float u_occlusionStrength;
+uniform float u_normalScale;
 uniform float u_alphaCutoff;
 uniform int   u_alphaMode; // 0=OPAQUE,1=MASK,2=BLEND
 uniform int   u_hasNormalMap;
+
+// Texture coordinate set (0 or 1) each texture info references.
+uniform int u_baseColorTexCoordSet;
+uniform int u_metallicRoughnessTexCoordSet;
+uniform int u_normalTexCoordSet;
+uniform int u_occlusionTexCoordSet;
+uniform int u_emissiveTexCoordSet;
 
 // Number of roughness levels - 1 (cast to float for layer lookup)
 uniform float u_roughnessScale;
@@ -48,10 +58,17 @@ in vec3 v_worldPos;
 in vec3 v_normal;
 in vec4 v_tangent;
 in vec2 v_texCoord0;
+in vec2 v_texCoord1;
+in vec4 v_color;
 
 out vec4 fragColor;
 
 const float PI = 3.14159265358979323846;
+
+vec2 selectUV(int set)
+{
+    return set == 1 ? v_texCoord1 : v_texCoord0;
+}
 
 // Fresnel-Schlick approximation.
 vec3 fresnelSchlick(float cosTheta, vec3 F0)
@@ -66,15 +83,15 @@ vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
 
 void main(void)
 {
-    // ---------- Sample textures ----------
-    vec4  baseColorSample = texture(u_baseColorTexture, v_texCoord0);
-    vec4  mrSample        = texture(u_metallicRoughnessTexture, v_texCoord0);
-    vec3  normalSample    = texture(u_normalTexture, v_texCoord0).xyz;
-    float aoSample        = texture(u_occlusionTexture, v_texCoord0).r;
-    vec3  emissiveSample  = texture(u_emissiveTexture, v_texCoord0).rgb;
+    // ---------- Sample textures (each with its own UV set) ----------
+    vec4  baseColorSample = texture(u_baseColorTexture, selectUV(u_baseColorTexCoordSet));
+    vec4  mrSample        = texture(u_metallicRoughnessTexture, selectUV(u_metallicRoughnessTexCoordSet));
+    vec3  normalSample    = texture(u_normalTexture, selectUV(u_normalTexCoordSet)).xyz;
+    float aoSample        = texture(u_occlusionTexture, selectUV(u_occlusionTexCoordSet)).r;
+    vec3  emissiveSample  = texture(u_emissiveTexture, selectUV(u_emissiveTexCoordSet)).rgb;
 
-    // ---------- Base colour + alpha ----------
-    vec4 baseColor = baseColorSample * u_baseColorFactor;
+    // ---------- Base colour + alpha (modulated by the vertex colour) ----------
+    vec4 baseColor = baseColorSample * u_baseColorFactor * v_color;
 
     if (u_alphaMode == 1 && baseColor.a < u_alphaCutoff)
         discard;
@@ -92,7 +109,9 @@ void main(void)
         T        = normalize(T - dot(T, Ng) * Ng); // re-orthogonalise
         vec3 B   = cross(Ng, T) * v_tangent.w;
         mat3 TBN = mat3(T, B, Ng);
-        N        = normalize(TBN * (normalSample * 2.0 - 1.0));
+        vec3 nt  = normalSample * 2.0 - 1.0;
+        nt.xy   *= u_normalScale;
+        N        = normalize(TBN * nt);
     }
     else
     {

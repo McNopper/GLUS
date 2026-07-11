@@ -10,7 +10,7 @@
 
 cmake_minimum_required(VERSION 3.14)
 
-project(GLUS VERSION 1.0.1)
+project(GLUS VERSION 1.1.0)
 
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 	# Mac OS X
@@ -82,6 +82,7 @@ list(APPEND ONLY_GL_C_FILES		${GLUS_SOURCE_DIR}/src/glus_window_glfw.c
 								${GLUS_SOURCE_DIR}/src/glus_programpipeline.c
 								${GLUS_SOURCE_DIR}/src/glus_program.c
 								${GLUS_SOURCE_DIR}/src/glus_shape_adjacency.c
+								${GLUS_SOURCE_DIR}/src/glus_gltf.c
 )
 
 # Files currently not used
@@ -206,5 +207,29 @@ IF(NOT (${OpenGL} MATCHES "ES"))
 	endif()
 
 	target_link_libraries(GLUS PUBLIC libglew_static glfw)
+
+	# cgltf v1.14 - single-header glTF 2.0 parser, and stb_image.h for image
+	# decoding. Used by the desktop-only glTF loader (glus_gltf.c). The include
+	# directories are exposed publicly so consumers can read glTF extension data
+	# directly from cgltf when they need to.
+	FetchContent_Declare(
+		cgltf
+		GIT_REPOSITORY https://github.com/jkuhlmann/cgltf.git
+		GIT_TAG        v1.14
+	)
+	FetchContent_MakeAvailable(cgltf)
+
+	FetchContent_Declare(
+		stb
+		GIT_REPOSITORY https://github.com/nothings/stb.git
+		GIT_TAG        master
+	)
+	FetchContent_MakeAvailable(stb)
+
+	target_include_directories(GLUS PUBLIC ${cgltf_SOURCE_DIR} ${stb_SOURCE_DIR})
+
+	# Absolute path to the GLUS shader directory, so applications can load the
+	# glTF / IBL shaders straight from this source tree without a copied folder.
+	target_compile_definitions(GLUS PUBLIC GLUS_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shader")
 
 ENDIF()

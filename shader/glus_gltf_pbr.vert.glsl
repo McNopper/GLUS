@@ -25,11 +25,15 @@ layout(location = 0) in vec3 a_position;
 layout(location = 1) in vec3 a_normal;
 layout(location = 2) in vec4 a_tangent; // xyz=tangent, w=handedness
 layout(location = 3) in vec2 a_texCoord0;
+layout(location = 6) in vec2 a_texCoord1; // second UV set (default 0,0)
+layout(location = 7) in vec4 a_color0;    // vertex color (default 1,1,1,1)
 
 out vec3 v_worldPos;
 out vec3 v_normal;
 out vec4 v_tangent;
 out vec2 v_texCoord0;
+out vec2 v_texCoord1;
+out vec4 v_color;
 
 void main(void)
 {
@@ -38,5 +42,7 @@ void main(void)
     v_normal      = normalize(u_normalMatrix * a_normal);
     v_tangent     = vec4(normalize(u_normalMatrix * a_tangent.xyz), a_tangent.w);
     v_texCoord0   = a_texCoord0;
+    v_texCoord1   = a_texCoord1;
+    v_color       = a_color0;
     gl_Position   = u_viewProjectionMatrix * worldPos;
 }
