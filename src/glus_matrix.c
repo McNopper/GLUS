@@ -600,6 +600,17 @@ GLUSboolean GLUSAPIENTRY glusMatrix2x2Inversef(GLUSfloat matrix[4])
     return GLUS_TRUE;
 }
 
+static GLUSfloat glusMatrixInverseSquaredScale(const GLUSfloat scale)
+{
+    // A degenerated basis vector has no inverse. Fall back to one instead of creating infinity.
+    if (scale == 0.0f)
+    {
+        return 1.0f;
+    }
+
+    return 1.0f / (scale * scale);
+}
+
 GLUSvoid GLUSAPIENTRY glusMatrix4x4InverseRigidBodyf(GLUSfloat matrix[16])
 {
     GLUSfloat scales[3];
@@ -610,9 +621,9 @@ GLUSvoid GLUSAPIENTRY glusMatrix4x4InverseRigidBodyf(GLUSfloat matrix[16])
     glusMatrix4x4GetScalef(scales, matrix);
     glusMatrix4x4Identityf(inverseScale);
     // Square of it, as rotation still contains the scale
-    inverseScale[0]  = 1.0f / (scales[0] * scales[0]);
-    inverseScale[5]  = 1.0f / (scales[1] * scales[1]);
-    inverseScale[10] = 1.0f / (scales[2] * scales[2]);
+    inverseScale[0]  = glusMatrixInverseSquaredScale(scales[0]);
+    inverseScale[5]  = glusMatrixInverseSquaredScale(scales[1]);
+    inverseScale[10] = glusMatrixInverseSquaredScale(scales[2]);
 
     glusMatrix4x4Copyf(inverseRotation, matrix, GLUS_TRUE);
     glusMatrix4x4Transposef(inverseRotation);
@@ -638,8 +649,8 @@ GLUSvoid GLUSAPIENTRY glusMatrix3x3InverseRigidBodyf(GLUSfloat matrix[9], const 
         glusMatrix3x3GetScalef(scales, matrix);
         glusMatrix3x3Identityf(inverseScale);
         // Square of it, as rotation still contains the scale
-        inverseScale[0] = 1.0f / (scales[0] * scales[0]);
-        inverseScale[4] = 1.0f / (scales[1] * scales[1]);
+        inverseScale[0] = glusMatrixInverseSquaredScale(scales[0]);
+        inverseScale[4] = glusMatrixInverseSquaredScale(scales[1]);
         // Last column is 2D translate
 
         glusMatrix3x3Copyf(inverseRotation, matrix, is2D);
@@ -661,9 +672,9 @@ GLUSvoid GLUSAPIENTRY glusMatrix3x3InverseRigidBodyf(GLUSfloat matrix[9], const 
         glusMatrix3x3GetScalef(scales, matrix);
         glusMatrix3x3Identityf(inverseScale);
         // Square of it, as rotation still contains the scale
-        inverseScale[0] = 1.0f / (scales[0] * scales[0]);
-        inverseScale[4] = 1.0f / (scales[1] * scales[1]);
-        inverseScale[8] = 1.0f / (scales[2] * scales[2]);
+        inverseScale[0] = glusMatrixInverseSquaredScale(scales[0]);
+        inverseScale[4] = glusMatrixInverseSquaredScale(scales[1]);
+        inverseScale[8] = glusMatrixInverseSquaredScale(scales[2]);
 
         glusMatrix3x3Copyf(inverseRotation, matrix, is2D);
         glusMatrix3x3Transposef(inverseRotation);
@@ -681,8 +692,8 @@ GLUSvoid GLUSAPIENTRY glusMatrix2x2InverseRigidBodyf(GLUSfloat matrix[4])
     glusMatrix2x2GetScalef(scales, matrix);
     glusMatrix2x2Identityf(inverseScale);
     // Square of it, as rotation still contains the scale
-    inverseScale[0] = 1.0f / (scales[0] * scales[0]);
-    inverseScale[3] = 1.0f / (scales[1] * scales[1]);
+    inverseScale[0] = glusMatrixInverseSquaredScale(scales[0]);
+    inverseScale[3] = glusMatrixInverseSquaredScale(scales[1]);
 
     glusMatrix2x2Copyf(inverseRotation, matrix);
     glusMatrix2x2Transposef(inverseRotation);
@@ -1339,13 +1350,13 @@ GLUSboolean GLUSAPIENTRY glusMatrix4x4GetEulerRzRxRyf(GLUSfloat angles[3], const
 
     if (!(matrix[2] == 0.0f && matrix[10] == 0.0f) && !(matrix[4] == 0.0f && matrix[5] == 0.0f))
     {
-        angles[0] = glusMathRadToDegf(asinf(matrix[6] / scales[1]));
+        angles[0] = glusMathRadToDegf(asinf(glusMathClampf(matrix[6] / scales[1], -1.0f, 1.0f)));
         angles[1] = glusMathRadToDegf(atan2f(-matrix[2] / scales[0], matrix[10] / scales[2]));
         angles[2] = glusMathRadToDegf(atan2f(-matrix[4] / scales[1], matrix[5] / scales[1]));
     }
     else if (!(matrix[1] == 0.0f && matrix[0] == 0.0f))
     {
-        angles[0] = glusMathRadToDegf(asinf(matrix[6] / scales[1]));
+        angles[0] = glusMathRadToDegf(asinf(glusMathClampf(matrix[6] / scales[1], -1.0f, 1.0f)));
         angles[1] = 0.0f;
         angles[2] = glusMathRadToDegf(atan2f(matrix[1] / scales[0], matrix[0] / scales[0]));
     }
@@ -1371,13 +1382,13 @@ GLUSboolean GLUSAPIENTRY glusMatrix4x4GetEulerRzRyRxf(GLUSfloat angles[3], const
     if (!(matrix[6] == 0.0f && matrix[10] == 0.0f) && !(matrix[1] == 0.0f && matrix[0] == 0.0f))
     {
         angles[0] = glusMathRadToDegf(atan2f(matrix[6] / scales[1], matrix[10] / scales[2]));
-        angles[1] = glusMathRadToDegf(asinf(-matrix[2] / scales[0]));
+        angles[1] = glusMathRadToDegf(asinf(glusMathClampf(-matrix[2] / scales[0], -1.0f, 1.0f)));
         angles[2] = glusMathRadToDegf(atan2f(matrix[1] / scales[0], matrix[0] / scales[0]));
     }
     else if (!(matrix[4] == 0.0f && matrix[5] == 0.0f))
     {
         angles[0] = glusMathRadToDegf(atan2f(matrix[4] / scales[1], matrix[5] / scales[1]));
-        angles[1] = glusMathRadToDegf(asinf(-matrix[2] / scales[0]));
+        angles[1] = glusMathRadToDegf(asinf(glusMathClampf(-matrix[2] / scales[0], -1.0f, 1.0f)));
         angles[2] = 0.0f;
     }
     else
@@ -1401,13 +1412,13 @@ GLUSboolean GLUSAPIENTRY glusMatrix3x3GetEulerRzRxRyf(GLUSfloat angles[3], const
 
     if (!(matrix[2] == 0.0f && matrix[8] == 0.0f) && !(matrix[3] == 0.0f && matrix[4] == 0.0f))
     {
-        angles[0] = glusMathRadToDegf(asinf(matrix[5] / scales[1]));
+        angles[0] = glusMathRadToDegf(asinf(glusMathClampf(matrix[5] / scales[1], -1.0f, 1.0f)));
         angles[1] = glusMathRadToDegf(atan2f(-matrix[2] / scales[0], matrix[8] / scales[2]));
         angles[2] = glusMathRadToDegf(atan2f(-matrix[3] / scales[1], matrix[4] / scales[1]));
     }
     else if (!(matrix[1] == 0.0f && matrix[0] == 0.0f))
     {
-        angles[0] = glusMathRadToDegf(asinf(matrix[5] / scales[1]));
+        angles[0] = glusMathRadToDegf(asinf(glusMathClampf(matrix[5] / scales[1], -1.0f, 1.0f)));
         angles[1] = 0.0f;
         angles[2] = glusMathRadToDegf(atan2f(matrix[1] / scales[0], matrix[0] / scales[0]));
     }
@@ -1433,13 +1444,13 @@ GLUSboolean GLUSAPIENTRY glusMatrix3x3GetEulerRzRyRxf(GLUSfloat angles[3], const
     if (!(matrix[5] == 0.0f && matrix[8] == 0.0f) && !(matrix[1] == 0.0f && matrix[0] == 0.0f))
     {
         angles[0] = glusMathRadToDegf(atan2f(matrix[5] / scales[1], matrix[8] / scales[2]));
-        angles[1] = glusMathRadToDegf(asinf(-matrix[2] / scales[0]));
+        angles[1] = glusMathRadToDegf(asinf(glusMathClampf(-matrix[2] / scales[0], -1.0f, 1.0f)));
         angles[2] = glusMathRadToDegf(atan2f(matrix[1] / scales[0], matrix[0] / scales[0]));
     }
     else if (!(matrix[3] == 0.0f && matrix[4] == 0.0f))
     {
         angles[0] = glusMathRadToDegf(atan2f(matrix[3] / scales[1], matrix[4] / scales[1]));
-        angles[1] = glusMathRadToDegf(asinf(-matrix[2] / scales[0]));
+        angles[1] = glusMathRadToDegf(asinf(glusMathClampf(-matrix[2] / scales[0], -1.0f, 1.0f)));
         angles[2] = 0.0f;
     }
     else
@@ -1461,7 +1472,9 @@ GLUSboolean GLUSAPIENTRY glusMatrix3x3GetAnglef(GLUSfloat* angle, const GLUSfloa
         return GLUS_FALSE;
     }
 
-    *angle = glusMathRadToDegf(acosf(matrix[0] / scales[0]));
+    // Using atan2 of the sine and cosine entries keeps the sign of the angle and
+    // can not produce not a number values because of rounding, as acos would.
+    *angle = glusMathRadToDegf(atan2f(matrix[1] / scales[0], matrix[0] / scales[0]));
 
     return GLUS_TRUE;
 }
@@ -1477,7 +1490,9 @@ GLUSboolean GLUSAPIENTRY glusMatrix2x2GetAnglef(GLUSfloat* angle, const GLUSfloa
         return GLUS_FALSE;
     }
 
-    *angle = glusMathRadToDegf(acosf(matrix[0] / scales[0]));
+    // Using atan2 of the sine and cosine entries keeps the sign of the angle and
+    // can not produce not a number values because of rounding, as acos would.
+    *angle = glusMathRadToDegf(atan2f(matrix[1] / scales[0], matrix[0] / scales[0]));
 
     return GLUS_TRUE;
 }

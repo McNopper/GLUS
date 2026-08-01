@@ -116,6 +116,14 @@ static GLUSint glusImageDecodeNewRLE(FILE* file, GLUSubyte* scanline, GLUSint wi
             {
                 // Non-run
 
+                // A zero length literal run would not make any progress.
+                if (code == 0)
+                {
+                    glusFileClose(file);
+
+                    return -1;
+                }
+
                 scanLength += code;
 
                 if (scanLength > width)
@@ -174,7 +182,7 @@ GLUSboolean GLUSAPIENTRY glusImageCreateHdr(GLUShdrimage* hdrimage, GLUSint widt
         return GLUS_FALSE;
     }
 
-    hdrimage->data = (GLUSfloat*)glusMemoryMalloc(width * height * depth * stride * sizeof(GLUSfloat));
+    hdrimage->data = (GLUSfloat*)glusMemoryMalloc((size_t)width * (size_t)height * (size_t)depth * (size_t)stride * sizeof(GLUSfloat));
     if (!hdrimage->data)
     {
         return GLUS_FALSE;
@@ -280,12 +288,14 @@ GLUSboolean GLUSAPIENTRY glusImageLoadHdr(const GLUSchar* filename, GLUShdrimage
 
     // Resolution
     i = 0;
-    while (GLUS_TRUE)
+    while (i < (GLUSint)sizeof(buffer) - 1)
     {
         elementsRead = fread(&currentChar, 1, 1, file);
 
         if (!_glusFileCheckRead(file, elementsRead, 1))
         {
+            glusImageDestroyHdr(hdrimage);
+
             return GLUS_FALSE;
         }
 
@@ -297,7 +307,29 @@ GLUSboolean GLUSAPIENTRY glusImageLoadHdr(const GLUSchar* filename, GLUShdrimage
         }
     }
 
-    if (!sscanf(buffer, "-Y %d +X %d", &height, &width))
+    // The resolution line has to fit into the buffer and has to be terminated.
+    if (i == 0 || buffer[i - 1] != '\n')
+    {
+        glusFileClose(file);
+
+        glusImageDestroyHdr(hdrimage);
+
+        return GLUS_FALSE;
+    }
+
+    buffer[i] = '\0';
+
+    if (sscanf(buffer, "-Y %d +X %d", &height, &width) != 2)
+    {
+        glusFileClose(file);
+
+        glusImageDestroyHdr(hdrimage);
+
+        return GLUS_FALSE;
+    }
+
+    // Both dimensions are stored as GLUSushort, so they have to fit in.
+    if (width < 1 || height < 1 || width > 65535 || height > 65535)
     {
         glusFileClose(file);
 
@@ -311,7 +343,7 @@ GLUSboolean GLUSAPIENTRY glusImageLoadHdr(const GLUSchar* filename, GLUShdrimage
     hdrimage->depth  = 1;
     hdrimage->format = GLUS_RGB;
 
-    hdrimage->data = (GLUSfloat*)glusMemoryMalloc(width * height * 3 * sizeof(GLUSfloat));
+    hdrimage->data = (GLUSfloat*)glusMemoryMalloc((size_t)width * (size_t)height * 3 * sizeof(GLUSfloat));
 
     if (!hdrimage->data)
     {
@@ -360,7 +392,7 @@ GLUSboolean GLUSAPIENTRY glusImageLoadHdr(const GLUSchar* filename, GLUShdrimage
         repeat = 0;
 
         // Examine value
-        if (width < 32768 && buffer[0] == 2 && buffer[1] == 2 && buffer[2] == ((width >> 8) & 0xFF) && buffer[3] == (width & 0xFF))
+        if (width < 32768 && (GLUSubyte)buffer[0] == 2 && (GLUSubyte)buffer[1] == 2 && (GLUSubyte)buffer[2] == (GLUSubyte)((width >> 8) & 0xFF) && (GLUSubyte)buffer[3] == (GLUSubyte)(width & 0xFF))
         {
             // New RLE decoding
 
@@ -371,6 +403,18 @@ GLUSboolean GLUSAPIENTRY glusImageLoadHdr(const GLUSchar* filename, GLUShdrimage
                 glusMemoryFree(scanline);
 
                 // File already closed
+
+                glusImageDestroyHdr(hdrimage);
+
+                return GLUS_FALSE;
+            }
+
+            // Zero decoded pixels would neither make progress nor provide a previous value.
+            if (scanlinePixels == 0)
+            {
+                glusMemoryFree(scanline);
+
+                glusFileClose(file);
 
                 glusImageDestroyHdr(hdrimage);
 
@@ -417,14 +461,18 @@ GLUSboolean GLUSAPIENTRY glusImageLoadHdr(const GLUSchar* filename, GLUShdrimage
         {
             // Old RLE decoding
 
-            repeat = buffer[3] * factor;
+            repeat = (GLUSint)(GLUSubyte)buffer[3] * factor;
 
             rgbe[0] = prevRgbe[0];
             rgbe[1] = prevRgbe[1];
             rgbe[2] = prevRgbe[2];
             rgbe[3] = prevRgbe[3];
 
-            factor *= 256;
+            // Cap the factor, as more markers can not address more than the whole image anyway.
+            if (factor <= 65536)
+            {
+                factor *= 256;
+            }
         }
         else
         {
@@ -509,10 +557,11 @@ GLUSboolean GLUSAPIENTRY glusImageSaveHdr(const GLUSchar* filename, const GLUShd
     }
 
     // Header
-    elementsWritten = fputs("#?RADIANCE\n#Saved with GLUS\nFORMAT=32-bit_rle_rgbe\n\n", file);
-
-    if (!_glusFileCheckWrite(file, elementsWritten, 52))
+    // Note: fputs only reports failure by returning EOF, so it can not be checked by _glusFileCheckWrite.
+    if (fputs("#?RADIANCE\n#Saved with GLUS\nFORMAT=32-bit_rle_rgbe\n\n", file) == EOF)
     {
+        glusFileClose(file);
+
         return GLUS_FALSE;
     }
 

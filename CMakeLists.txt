@@ -10,7 +10,7 @@
 
 cmake_minimum_required(VERSION 3.14)
 
-project(GLUS VERSION 1.1.0)
+project(GLUS VERSION 1.1.1)
 
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 	# Mac OS X

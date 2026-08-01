@@ -42,6 +42,7 @@
 typedef struct _GLUSgltfImageCacheEntry
 {
     cgltf_image* image;
+    GLUSboolean  sRGB;
     GLuint       texture;
 } GLUSgltfImageCacheEntry;
 
@@ -91,7 +92,20 @@ static GLUSvoid gltfDeriveBasePath(const GLUSchar* filename, GLUSchar* out, GLUS
 
     slash     = strrchr(filename, '/');
     backslash = strrchr(filename, '\\');
-    sep       = (slash > backslash) ? slash : backslash;
+
+    /* Note: Comparing possibly null pointers relationally is undefined. */
+    if (!slash)
+    {
+        sep = backslash;
+    }
+    else if (!backslash)
+    {
+        sep = slash;
+    }
+    else
+    {
+        sep = (slash > backslash) ? slash : backslash;
+    }
 
     if (!sep)
     {
@@ -203,11 +217,54 @@ static GLUSubyte* gltfBase64Decode(const GLUSchar* in, GLUSint len, GLUSint* out
     return out;
 }
 
+/* A glTF URI is only used as a file system path when it stays inside the base
+ * directory of the asset. Absolute paths, drive letters and ".." components are
+ * rejected, so a malicious asset can not read arbitrary files. */
+static GLUSboolean gltfIsSafeRelativeUri(const GLUSchar* uri)
+{
+    const GLUSchar* p;
+
+    if (!uri || !uri[0])
+    {
+        return GLUS_FALSE;
+    }
+    if (uri[0] == '/' || uri[0] == '\\')
+    {
+        return GLUS_FALSE;
+    }
+    if (uri[1] == ':')
+    {
+        return GLUS_FALSE;
+    }
+    for (p = uri; *p; p++)
+    {
+        if (p[0] != '.' || p[1] != '.')
+        {
+            continue;
+        }
+        if (p != uri && p[-1] != '/' && p[-1] != '\\')
+        {
+            continue;
+        }
+        if (p[2] == '\0' || p[2] == '/' || p[2] == '\\')
+        {
+            return GLUS_FALSE;
+        }
+    }
+    return GLUS_TRUE;
+}
+
 static GLUSubyte* gltfLoadImagePixels(cgltf_image* image, const GLUSchar* basePath, GLint* w, GLint* h)
 {
     if (image->buffer_view)
     {
-        const GLUSubyte* buf = (const GLUSubyte*)image->buffer_view->buffer->data + image->buffer_view->offset;
+        /* Note: cgltf_buffer_view_data validates the offsets and handles
+         * extension provided view data. */
+        const GLUSubyte* buf = (const GLUSubyte*)cgltf_buffer_view_data(image->buffer_view);
+        if (!buf)
+        {
+            return NULL;
+        }
         return stbi_load_from_memory(buf, (int)image->buffer_view->size, w, h, NULL, 4);
     }
     if (image->uri)
@@ -232,6 +289,11 @@ static GLUSubyte* gltfLoadImagePixels(cgltf_image* image, const GLUSchar* basePa
         }
         {
             GLUSchar path[4096];
+            if (!gltfIsSafeRelativeUri(image->uri))
+            {
+                glusLogPrint(GLUS_LOG_ERROR, "glTF: rejecting unsafe image URI '%s'", image->uri);
+                return NULL;
+            }
             if (basePath && basePath[0])
             {
                 snprintf(path, sizeof(path), "%s%s", basePath, image->uri);
@@ -283,9 +345,12 @@ static GLuint gltfLoadImageTexture(GLUSgltfLoadContext* ctx, cgltf_image* image,
     {
         return ctx->scene->defaultWhiteTexture;
     }
+    /* The cache is keyed on the image and the colour space, as the same image
+     * can be used as an sRGB base colour and as a linear metallic-roughness
+     * map, which need different internal formats. */
     for (i = 0; i < ctx->cacheCount; i++)
     {
-        if (ctx->cache[i].image == image)
+        if (ctx->cache[i].image == image && ctx->cache[i].sRGB == sRGB)
         {
             return ctx->cache[i].texture;
         }
@@ -309,12 +374,21 @@ static GLuint gltfLoadImageTexture(GLUSgltfLoadContext* ctx, cgltf_image* image,
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
     stbi_image_free(pix);
 
-    if (ctx->cacheCount < ctx->cacheCap)
+    /* Every created texture has to be tracked, otherwise it can never be
+     * deleted again. The cache is large enough to hold both colour spaces of
+     * every image, so this can not fail for a well formed asset. */
+    if (ctx->cacheCount >= ctx->cacheCap)
     {
-        ctx->cache[ctx->cacheCount].image   = image;
-        ctx->cache[ctx->cacheCount].texture = tex;
-        ctx->cacheCount++;
+        glusLogPrint(GLUS_LOG_WARNING, "glTF: image cache is full, discarding texture");
+        glDeleteTextures(1, &tex);
+        return ctx->scene->defaultWhiteTexture;
     }
+
+    ctx->cache[ctx->cacheCount].image   = image;
+    ctx->cache[ctx->cacheCount].sRGB    = sRGB;
+    ctx->cache[ctx->cacheCount].texture = tex;
+    ctx->cacheCount++;
+
     return tex;
 }
 
@@ -349,6 +423,7 @@ static GLint gltfTypeComponents(cgltf_type t)
 static GLfloat* gltfReadAccessorFloats(cgltf_accessor* acc, GLint components)
 {
     GLint     native;
+    GLint     copy;
     GLint     n;
     GLint     i;
     GLint     c;
@@ -378,13 +453,16 @@ static GLfloat* gltfReadAccessorFloats(cgltf_accessor* acc, GLint components)
         return NULL;
     }
     cgltf_accessor_unpack_floats(acc, tmp, (cgltf_size)n * (cgltf_size)native);
+    /* Never copy more than the destination stride, otherwise a wider native
+     * component count would write past the end of the output. */
+    copy = native < components ? native : components;
     for (i = 0; i < n; i++)
     {
-        for (c = 0; c < native; c++)
+        for (c = 0; c < copy; c++)
         {
             out[i * components + c] = tmp[i * native + c];
         }
-        for (c = native; c < components; c++)
+        for (c = copy; c < components; c++)
         {
             out[i * components + c] = (components == 4 && c == 3) ? 1.0f : 0.0f;
         }
@@ -443,12 +521,18 @@ static GLUSvoid gltfUploadIndices(cgltf_accessor* acc, GLuint* outIbo, GLsizei* 
     fbuf = gltfReadAccessorFloats(acc, 1);
     if (!fbuf)
     {
+        glusLogPrint(GLUS_LOG_ERROR, "glTF: out of memory while reading %d indices", (GLint)n);
+        *outIbo   = 0;
+        *outCount = 0;
         return;
     }
     ibuf = (GLuint*)malloc((size_t)n * sizeof(GLuint));
     if (!ibuf)
     {
+        glusLogPrint(GLUS_LOG_ERROR, "glTF: out of memory while converting %d indices", (GLint)n);
         free(fbuf);
+        *outIbo   = 0;
+        *outCount = 0;
         return;
     }
     for (i = 0; i < n; i++)
@@ -495,7 +579,7 @@ static cgltf_accessor* gltfFindTargetAttribute(cgltf_morph_target* tgt, cgltf_at
 
 /* Upload per-target POSITION / NORMAL / TANGENT deltas into SSBOs packed as
  * [target][vertex]. Sparse-aware via gltfReadAccessorFloats. */
-static GLUSvoid gltfUploadMorphDeltas(GLUSgltfPrimitive* gp, cgltf_primitive* prim, GLsizei vertCount, GLint mt)
+static GLUSboolean gltfUploadMorphDeltas(GLUSgltfPrimitive* gp, cgltf_primitive* prim, GLsizei vertCount, GLint mt)
 {
     GLfloat* posBuf;
     GLfloat* norBuf = NULL;
@@ -503,18 +587,37 @@ static GLUSvoid gltfUploadMorphDeltas(GLUSgltfPrimitive* gp, cgltf_primitive* pr
     GLint    ti;
     GLint    hasN = 0;
     GLint    hasT = 0;
+    GLsizei  copyCount;
     size_t   posFloats = (size_t)mt * (size_t)vertCount * 3u;
 
     posBuf = (GLfloat*)calloc(posFloats, sizeof(GLfloat));
+    if (!posBuf)
+    {
+        glusLogPrint(GLUS_LOG_ERROR, "glTF: out of memory while uploading morph positions");
+        return GLUS_FALSE;
+    }
     if (mt > 0 && gltfFindTargetAttribute(&prim->targets[0], cgltf_attribute_type_normal))
     {
         hasN   = 1;
         norBuf = (GLfloat*)calloc(posFloats, sizeof(GLfloat));
+        if (!norBuf)
+        {
+            glusLogPrint(GLUS_LOG_ERROR, "glTF: out of memory while uploading morph normals");
+            free(posBuf);
+            return GLUS_FALSE;
+        }
     }
     if (mt > 0 && gltfFindTargetAttribute(&prim->targets[0], cgltf_attribute_type_tangent))
     {
         hasT   = 1;
         tanBuf = (GLfloat*)calloc((size_t)mt * (size_t)vertCount * 4u, sizeof(GLfloat));
+        if (!tanBuf)
+        {
+            glusLogPrint(GLUS_LOG_ERROR, "glTF: out of memory while uploading morph tangents");
+            free(posBuf);
+            free(norBuf);
+            return GLUS_FALSE;
+        }
     }
 
     for (ti = 0; ti < mt; ti++)
@@ -528,7 +631,10 @@ static GLUSvoid gltfUploadMorphDeltas(GLUSgltfPrimitive* gp, cgltf_primitive* pr
             GLfloat* tmp = gltfReadAccessorFloats(a, 3);
             if (tmp)
             {
-                memcpy(posBuf + (size_t)ti * vertCount * 3, tmp, (size_t)vertCount * 3 * sizeof(GLfloat));
+                /* The target accessor may hold fewer elements than the
+                 * primitive has vertices, so the copy has to be clamped. */
+                copyCount = (GLsizei)a->count < vertCount ? (GLsizei)a->count : vertCount;
+                memcpy(posBuf + (size_t)ti * vertCount * 3, tmp, (size_t)copyCount * 3 * sizeof(GLfloat));
                 free(tmp);
             }
         }
@@ -540,7 +646,8 @@ static GLUSvoid gltfUploadMorphDeltas(GLUSgltfPrimitive* gp, cgltf_primitive* pr
                 GLfloat* tmp = gltfReadAccessorFloats(a, 3);
                 if (tmp)
                 {
-                    memcpy(norBuf + (size_t)ti * vertCount * 3, tmp, (size_t)vertCount * 3 * sizeof(GLfloat));
+                    copyCount = (GLsizei)a->count < vertCount ? (GLsizei)a->count : vertCount;
+                    memcpy(norBuf + (size_t)ti * vertCount * 3, tmp, (size_t)copyCount * 3 * sizeof(GLfloat));
                     free(tmp);
                 }
             }
@@ -553,7 +660,8 @@ static GLUSvoid gltfUploadMorphDeltas(GLUSgltfPrimitive* gp, cgltf_primitive* pr
                 GLfloat* tmp = gltfReadAccessorFloats(a, 4);
                 if (tmp)
                 {
-                    memcpy(tanBuf + (size_t)ti * vertCount * 4, tmp, (size_t)vertCount * 4 * sizeof(GLfloat));
+                    copyCount = (GLsizei)a->count < vertCount ? (GLsizei)a->count : vertCount;
+                    memcpy(tanBuf + (size_t)ti * vertCount * 4, tmp, (size_t)copyCount * 4 * sizeof(GLfloat));
                     free(tmp);
                 }
             }
@@ -580,6 +688,8 @@ static GLUSvoid gltfUploadMorphDeltas(GLUSgltfPrimitive* gp, cgltf_primitive* pr
     free(posBuf);
     free(norBuf);
     free(tanBuf);
+
+    return GLUS_TRUE;
 }
 
 static GLenum gltfPrimitiveMode(cgltf_primitive_type t)
@@ -882,11 +992,24 @@ static GLUSvoid gltfProcessNodeMeshes(GLUSgltfLoadContext* ctx, GLint nodeIndex,
             weights     = cnode->weights_count ? cnode->weights : mesh->weights;
             weightCount = cnode->weights_count ? cnode->weights_count : mesh->weights_count;
             gp->morphWeights = (GLfloat*)malloc(sizeof(GLfloat) * gp->morphTargetCount);
-            for (ti = 0; ti < gp->morphTargetCount; ti++)
+            if (!gp->morphWeights)
             {
-                gp->morphWeights[ti] = ((cgltf_size)ti < weightCount) ? (GLfloat)weights[ti] : 0.0f;
+                glusLogPrint(GLUS_LOG_ERROR, "glTF: out of memory while creating %d morph weights", gp->morphTargetCount);
+                gp->morphTargetCount = 0;
             }
-            gltfUploadMorphDeltas(gp, prim, vertCount, gp->morphTargetCount);
+            else
+            {
+                for (ti = 0; ti < gp->morphTargetCount; ti++)
+                {
+                    gp->morphWeights[ti] = ((cgltf_size)ti < weightCount) ? (GLfloat)weights[ti] : 0.0f;
+                }
+                if (!gltfUploadMorphDeltas(gp, prim, vertCount, gp->morphTargetCount))
+                {
+                    free(gp->morphWeights);
+                    gp->morphWeights     = NULL;
+                    gp->morphTargetCount = 0;
+                }
+            }
         }
 
         if (accPos->has_min && accPos->has_max)
@@ -896,7 +1019,7 @@ static GLUSvoid gltfProcessNodeMeshes(GLUSgltfLoadContext* ctx, GLint nodeIndex,
     }
 }
 
-static GLUSvoid gltfBuildNodes(GLUSgltfScene* scene)
+static GLUSboolean gltfBuildNodes(GLUSgltfScene* scene)
 {
     cgltf_data* data = scene->cgltfData;
     GLint       ni, ci, i;
@@ -904,9 +1027,15 @@ static GLUSvoid gltfBuildNodes(GLUSgltfScene* scene)
     scene->nodeCount = (GLint)data->nodes_count;
     if (scene->nodeCount <= 0)
     {
-        return;
+        return GLUS_TRUE;
     }
     scene->nodes = (GLUSgltfNode*)calloc((size_t)scene->nodeCount, sizeof(GLUSgltfNode));
+    if (!scene->nodes)
+    {
+        glusLogPrint(GLUS_LOG_ERROR, "glTF: out of memory while creating %d nodes", scene->nodeCount);
+        scene->nodeCount = 0;
+        return GLUS_FALSE;
+    }
 
     for (ni = 0; ni < scene->nodeCount; ni++)
     {
@@ -960,9 +1089,18 @@ static GLUSvoid gltfBuildNodes(GLUSgltfScene* scene)
         if (gn->childCount > 0)
         {
             gn->childIndices = (GLint*)malloc(sizeof(GLint) * (size_t)gn->childCount);
+            if (!gn->childIndices)
+            {
+                glusLogPrint(GLUS_LOG_ERROR, "glTF: out of memory while creating %d child indices", gn->childCount);
+                gn->childCount = 0;
+                return GLUS_FALSE;
+            }
             for (ci = 0; ci < gn->childCount; ci++)
             {
-                gn->childIndices[ci] = (GLint)(cn->children[ci] - data->nodes);
+                GLint c = (GLint)(cn->children[ci] - data->nodes);
+
+                /* A child has to reference a node of this asset. */
+                gn->childIndices[ci] = (c >= 0 && c < scene->nodeCount) ? c : -1;
             }
         }
 
@@ -992,9 +1130,11 @@ static GLUSvoid gltfBuildNodes(GLUSgltfScene* scene)
             }
         }
     }
+
+    return GLUS_TRUE;
 }
 
-static GLUSvoid gltfBuildRootNodes(GLUSgltfScene* scene, GLint sceneIndex)
+static GLUSboolean gltfBuildRootNodes(GLUSgltfScene* scene, GLint sceneIndex)
 {
     cgltf_data*  data = scene->cgltfData;
     cgltf_scene* sc = NULL;
@@ -1013,15 +1153,31 @@ static GLUSvoid gltfBuildRootNodes(GLUSgltfScene* scene, GLint sceneIndex)
     if (sc)
     {
         scene->rootNodes = (GLint*)malloc(sizeof(GLint) * (sc->nodes_count > 0 ? sc->nodes_count : 1));
+        if (!scene->rootNodes)
+        {
+            glusLogPrint(GLUS_LOG_ERROR, "glTF: out of memory while creating the root nodes");
+            return GLUS_FALSE;
+        }
         for (ni = 0; ni < (GLint)sc->nodes_count; ni++)
         {
-            scene->rootNodes[scene->rootNodeCount++] = (GLint)(sc->nodes[ni] - data->nodes);
+            GLint r = (GLint)(sc->nodes[ni] - data->nodes);
+
+            /* A root has to reference a node of this asset. */
+            if (r >= 0 && r < scene->nodeCount)
+            {
+                scene->rootNodes[scene->rootNodeCount++] = r;
+            }
         }
     }
     else
     {
         GLint cap = scene->nodeCount > 0 ? scene->nodeCount : 1;
         scene->rootNodes = (GLint*)malloc(sizeof(GLint) * (size_t)cap);
+        if (!scene->rootNodes)
+        {
+            glusLogPrint(GLUS_LOG_ERROR, "glTF: out of memory while creating the root nodes");
+            return GLUS_FALSE;
+        }
         for (ni = 0; ni < scene->nodeCount; ni++)
         {
             if (scene->nodes[ni].parentIndex == -1)
@@ -1030,9 +1186,11 @@ static GLUSvoid gltfBuildRootNodes(GLUSgltfScene* scene, GLint sceneIndex)
             }
         }
     }
+
+    return GLUS_TRUE;
 }
 
-static GLUSvoid gltfBuildSkins(GLUSgltfScene* scene)
+static GLUSboolean gltfBuildSkins(GLUSgltfScene* scene)
 {
     cgltf_data* data = scene->cgltfData;
     GLint       si, ji;
@@ -1040,9 +1198,15 @@ static GLUSvoid gltfBuildSkins(GLUSgltfScene* scene)
     scene->skinCount = (GLint)data->skins_count;
     if (scene->skinCount <= 0)
     {
-        return;
+        return GLUS_TRUE;
     }
     scene->skins = (GLUSgltfSkin*)calloc((size_t)scene->skinCount, sizeof(GLUSgltfSkin));
+    if (!scene->skins)
+    {
+        glusLogPrint(GLUS_LOG_ERROR, "glTF: out of memory while creating %d skins", scene->skinCount);
+        scene->skinCount = 0;
+        return GLUS_FALSE;
+    }
 
     for (si = 0; si < scene->skinCount; si++)
     {
@@ -1062,9 +1226,17 @@ static GLUSvoid gltfBuildSkins(GLUSgltfScene* scene)
         gs->jointNodeIndices    = (GLint*)malloc(sizeof(GLint) * (size_t)gs->jointCount);
         gs->inverseBindMatrices = (GLfloat*)malloc(sizeof(GLfloat) * (size_t)gs->jointCount * 16);
         gs->jointMatrices       = (GLfloat*)malloc(sizeof(GLfloat) * (size_t)gs->jointCount * 16);
+        if (!gs->jointNodeIndices || !gs->inverseBindMatrices || !gs->jointMatrices)
+        {
+            glusLogPrint(GLUS_LOG_ERROR, "glTF: out of memory while creating %d joints of skin %d", gs->jointCount, si);
+            return GLUS_FALSE;
+        }
         for (ji = 0; ji < gs->jointCount; ji++)
         {
-            gs->jointNodeIndices[ji] = (GLint)(cs->joints[ji] - data->nodes);
+            GLint jni = (GLint)(cs->joints[ji] - data->nodes);
+
+            /* A joint has to reference a node of this asset. */
+            gs->jointNodeIndices[ji] = (jni >= 0 && jni < scene->nodeCount) ? jni : -1;
             glusMatrix4x4Identityf(&gs->inverseBindMatrices[ji * 16]);
             glusMatrix4x4Identityf(&gs->jointMatrices[ji * 16]);
         }
@@ -1084,9 +1256,11 @@ static GLUSvoid gltfBuildSkins(GLUSgltfScene* scene)
             }
         }
     }
+
+    return GLUS_TRUE;
 }
 
-static GLUSvoid gltfBuildAnimations(GLUSgltfScene* scene)
+static GLUSboolean gltfBuildAnimations(GLUSgltfScene* scene)
 {
     cgltf_data* data = scene->cgltfData;
     GLint       ai, chi;
@@ -1094,9 +1268,15 @@ static GLUSvoid gltfBuildAnimations(GLUSgltfScene* scene)
     scene->animationCount = (GLint)data->animations_count;
     if (scene->animationCount <= 0)
     {
-        return;
+        return GLUS_TRUE;
     }
     scene->animations = (GLUSgltfAnimation*)calloc((size_t)scene->animationCount, sizeof(GLUSgltfAnimation));
+    if (!scene->animations)
+    {
+        glusLogPrint(GLUS_LOG_ERROR, "glTF: out of memory while creating %d animations", scene->animationCount);
+        scene->animationCount = 0;
+        return GLUS_FALSE;
+    }
 
     for (ai = 0; ai < scene->animationCount; ai++)
     {
@@ -1109,17 +1289,33 @@ static GLUSvoid gltfBuildAnimations(GLUSgltfScene* scene)
         ga->startTime   = 1e30f;
         ga->endTime     = -1e30f;
 
+        if (!ga->channels)
+        {
+            glusLogPrint(GLUS_LOG_ERROR, "glTF: out of memory while creating the channels of animation %d", ai);
+            return GLUS_FALSE;
+        }
+
         for (chi = 0; chi < (GLint)ca->channels_count; chi++)
         {
             cgltf_animation_channel*  ch      = &ca->channels[chi];
             cgltf_animation_sampler*  sampler = ch->sampler;
             GLUSgltfAnimChannel*      ac;
             GLint                     path, interp, comp;
+            GLint                     nodeIndex;
+            GLint                     keyframeCount;
+            GLint                     valuesPerKeyframe;
 
-            if (!ch->target_node)
+            if (!ch->target_node || !sampler || !sampler->input || !sampler->output)
             {
                 continue;
             }
+
+            nodeIndex = (GLint)(ch->target_node - data->nodes);
+            if (nodeIndex < 0 || nodeIndex >= scene->nodeCount)
+            {
+                continue;
+            }
+
             switch (ch->target_path)
             {
             case cgltf_animation_path_type_translation:
@@ -1156,11 +1352,53 @@ static GLUSvoid gltfBuildAnimations(GLUSgltfScene* scene)
                 break;
             }
 
+            /* The consumers iterate the keyframes of the input accessor, so the
+             * output accessor has to be large enough for all of them. Cubic
+             * spline keyframes store in-tangent, vertex and out-tangent. */
+            keyframeCount     = (GLint)sampler->input->count;
+            valuesPerKeyframe = (interp == GLUS_ANIMATION_CUBICSPLINE) ? 3 : 1;
+
+            if (path == GLUS_GLTF_PATH_WEIGHTS)
+            {
+                /* A morph-weight keyframe holds one scalar per morph target,
+                 * which is what the sampler stride is derived from. */
+                cgltf_mesh* cmesh      = ch->target_node->mesh;
+                GLint       numTargets = 0;
+                GLint       pi;
+
+                if (cmesh)
+                {
+                    for (pi = 0; pi < (GLint)cmesh->primitives_count; pi++)
+                    {
+                        GLint tc = (GLint)cmesh->primitives[pi].targets_count;
+                        if (tc > GLUS_GLTF_MAX_MORPH_TARGETS)
+                        {
+                            tc = GLUS_GLTF_MAX_MORPH_TARGETS;
+                        }
+                        if (tc > numTargets)
+                        {
+                            numTargets = tc;
+                        }
+                    }
+                }
+                if (numTargets <= 0)
+                {
+                    continue;
+                }
+                valuesPerKeyframe *= numTargets;
+            }
+
+            if (keyframeCount <= 0 || (cgltf_size)keyframeCount * (cgltf_size)valuesPerKeyframe > sampler->output->count)
+            {
+                glusLogPrint(GLUS_LOG_WARNING, "glTF: animation %d channel %d has too few sampler output values; skipping", ai, chi);
+                continue;
+            }
+
             ac              = &ga->channels[ga->channelCount++];
-            ac->nodeIndex   = (GLint)(ch->target_node - data->nodes);
+            ac->nodeIndex   = nodeIndex;
             ac->path        = path;
             ac->interpolation = interp;
-            ac->keyframeCount = (GLint)sampler->input->count;
+            ac->keyframeCount = keyframeCount;
             ac->componentCount = comp;
 
             ac->times  = gltfReadAccessorFloats(sampler->input, 1);
@@ -1195,9 +1433,11 @@ static GLUSvoid gltfBuildAnimations(GLUSgltfScene* scene)
         }
         ga->duration = ga->endTime - ga->startTime;
     }
+
+    return GLUS_TRUE;
 }
 
-static GLUSvoid gltfBuildCameras(GLUSgltfScene* scene)
+static GLUSboolean gltfBuildCameras(GLUSgltfScene* scene)
 {
     cgltf_data* data = scene->cgltfData;
     GLint       ci;
@@ -1205,9 +1445,15 @@ static GLUSvoid gltfBuildCameras(GLUSgltfScene* scene)
     scene->cameraCount = (GLint)data->cameras_count;
     if (scene->cameraCount <= 0)
     {
-        return;
+        return GLUS_TRUE;
     }
     scene->cameras = (GLUSgltfCamera*)calloc((size_t)scene->cameraCount, sizeof(GLUSgltfCamera));
+    if (!scene->cameras)
+    {
+        glusLogPrint(GLUS_LOG_ERROR, "glTF: out of memory while creating %d cameras", scene->cameraCount);
+        scene->cameraCount = 0;
+        return GLUS_FALSE;
+    }
 
     for (ci = 0; ci < scene->cameraCount; ci++)
     {
@@ -1244,14 +1490,26 @@ static GLUSvoid gltfBuildCameras(GLUSgltfScene* scene)
             scene->cameras[scene->nodes[ci].cameraIndex].nodeIndex = ci;
         }
     }
+
+    return GLUS_TRUE;
 }
 
-static GLUSvoid gltfComputeWorldMatrix(GLUSgltfScene* scene, GLint nodeIndex, const GLfloat parentWorld[16])
+static GLUSvoid gltfComputeWorldMatrix(GLUSgltfScene* scene, GLint nodeIndex, const GLfloat parentWorld[16], GLint depth)
 {
-    GLUSgltfNode* gn = &scene->nodes[nodeIndex];
+    GLUSgltfNode* gn;
     GLfloat       local[16];
     GLfloat       T[16], R[16], S[16], RS[16], q[4];
     GLint         ci;
+
+    /* A node can list itself or an ancestor as a child, so both the index and
+     * the recursion depth have to be bounded. A valid hierarchy is never
+     * deeper than the number of nodes. */
+    if (nodeIndex < 0 || nodeIndex >= scene->nodeCount || depth >= scene->nodeCount)
+    {
+        return;
+    }
+
+    gn = &scene->nodes[nodeIndex];
 
     if (gn->hasMatrix)
     {
@@ -1283,7 +1541,7 @@ static GLUSvoid gltfComputeWorldMatrix(GLUSgltfScene* scene, GLint nodeIndex, co
 
     for (ci = 0; ci < gn->childCount; ci++)
     {
-        gltfComputeWorldMatrix(scene, gn->childIndices[ci], gn->worldMatrix);
+        gltfComputeWorldMatrix(scene, gn->childIndices[ci], gn->worldMatrix, depth + 1);
     }
 }
 
@@ -1335,7 +1593,7 @@ static GLUSfloat gltfSampleWeight(const GLUSgltfAnimChannel* ac, GLint numTarget
     GLUSboolean cub = (ac->interpolation == GLUS_ANIMATION_CUBICSPLINE) ? GLUS_TRUE : GLUS_FALSE;
     GLint    stride = cub ? 3 * numTargets : numTargets;
     GLint    i;
-    GLUSfloat u, v0, v1;
+    GLUSfloat u, v0, v1, delta;
 
     if (n <= 0 || numTargets <= 0)
     {
@@ -1363,12 +1621,19 @@ static GLUSfloat gltfSampleWeight(const GLUSgltfAnimChannel* ac, GLint numTarget
     {
         return GLTF_WEIGHT(i, 1);
     }
+
+    /* Two keyframes can share a timestamp, which would divide by zero. */
+    delta = ac->times[i + 1] - ac->times[i];
+    if (delta <= 0.0f)
+    {
+        return GLTF_WEIGHT(i, 1);
+    }
+
     u = (t - ac->times[i]) / (ac->times[i + 1] - ac->times[i]);
     v0 = GLTF_WEIGHT(i, 1);
     v1 = GLTF_WEIGHT(i + 1, 1);
     if (cub)
     {
-        GLUSfloat delta = ac->times[i + 1] - ac->times[i];
         GLUSfloat m0    = GLTF_WEIGHT(i, 2);     /* out-tangent of i    */
         GLUSfloat m1    = GLTF_WEIGHT(i + 1, 0); /* in-tangent of i + 1 */
         return glusMathCubicHermitef(v0, delta * m0, v1, delta * m1, u);
@@ -1472,6 +1737,16 @@ GLUSAPI GLUSboolean GLUSAPIENTRY glusGltfLoadSceneWith(const GLUSchar* filename,
         cgltf_free(data);
         return GLUS_FALSE;
     }
+    /* Without validation neither the buffer view and accessor offsets nor the
+     * sparse accessor writer indices are checked at all, which allows arbitrary
+     * heap reads and writes from a malicious asset. */
+    res = cgltf_validate(data);
+    if (res != cgltf_result_success)
+    {
+        glusLogPrint(GLUS_LOG_ERROR, "glTF: cgltf_validate failed (%d) for '%s'", res, filename);
+        cgltf_free(data);
+        return GLUS_FALSE;
+    }
     scene->cgltfData = data;
 
     /* GLUS implements the glTF 2.0 core only. Warn about any required
@@ -1484,17 +1759,23 @@ GLUSAPI GLUSboolean GLUSAPIENTRY glusGltfLoadSceneWith(const GLUSchar* filename,
     }
 
     scene->basePath = (GLUSchar*)malloc(1024);
+    if (!scene->basePath)
+    {
+        glusLogPrint(GLUS_LOG_ERROR, "glTF: out of memory while creating the base path");
+        glusGltfDestroyScene(scene);
+        return GLUS_FALSE;
+    }
     gltfDeriveBasePath(filename, scene->basePath, 1024);
 
     scene->sceneMin[0] = scene->sceneMin[1] = scene->sceneMin[2] = 1e30f;
     scene->sceneMax[0] = scene->sceneMax[1] = scene->sceneMax[2] = -1e30f;
     scene->sceneRadius                                            = 1.0f;
 
-    gltfBuildNodes(scene);
-    gltfBuildRootNodes(scene, sceneIndex);
-    gltfBuildSkins(scene);
-    gltfBuildAnimations(scene);
-    gltfBuildCameras(scene);
+    if (!gltfBuildNodes(scene) || !gltfBuildRootNodes(scene, sceneIndex) || !gltfBuildSkins(scene) || !gltfBuildAnimations(scene) || !gltfBuildCameras(scene))
+    {
+        glusGltfDestroyScene(scene);
+        return GLUS_FALSE;
+    }
 
     glusGltfUpdateTransforms(scene);
 
@@ -1513,15 +1794,30 @@ GLUSAPI GLUSboolean GLUSAPIENTRY glusGltfLoadSceneWith(const GLUSchar* filename,
         if (totalPrimitives > 0)
         {
             scene->primitives = (GLUSgltfPrimitive*)calloc((size_t)totalPrimitives, sizeof(GLUSgltfPrimitive));
+            if (!scene->primitives)
+            {
+                glusLogPrint(GLUS_LOG_ERROR, "glTF: out of memory while creating %d primitives", totalPrimitives);
+                glusGltfDestroyScene(scene);
+                return GLUS_FALSE;
+            }
         }
 
         ctx.scene      = scene;
         ctx.basePath   = scene->basePath;
         ctx.sRGB       = sRGB;
-        imgCap         = (GLint)data->images_count > 0 ? (GLint)data->images_count : 1;
+        /* An image can be used in both colour spaces, so twice the number of
+         * images is always enough to track every created texture. */
+        imgCap         = ((GLint)data->images_count > 0 ? (GLint)data->images_count : 1) * 2;
         ctx.cache      = (GLUSgltfImageCacheEntry*)calloc((size_t)imgCap, sizeof(GLUSgltfImageCacheEntry));
         ctx.cacheCount = 0;
         ctx.cacheCap   = imgCap;
+
+        if (!ctx.cache)
+        {
+            glusLogPrint(GLUS_LOG_ERROR, "glTF: out of memory while creating the image cache");
+            glusGltfDestroyScene(scene);
+            return GLUS_FALSE;
+        }
 
         for (ni = 0; ni < scene->nodeCount; ni++)
         {
@@ -1535,11 +1831,23 @@ GLUSAPI GLUSboolean GLUSAPIENTRY glusGltfLoadSceneWith(const GLUSchar* filename,
         if (ctx.cacheCount > 0)
         {
             scene->textures = (GLuint*)malloc(sizeof(GLuint) * (size_t)ctx.cacheCount);
-            for (i = 0; i < ctx.cacheCount; i++)
+            if (scene->textures)
             {
-                scene->textures[i] = ctx.cache[i].texture;
+                for (i = 0; i < ctx.cacheCount; i++)
+                {
+                    scene->textures[i] = ctx.cache[i].texture;
+                }
+                scene->textureCount = ctx.cacheCount;
             }
-            scene->textureCount = ctx.cacheCount;
+            else
+            {
+                /* The textures can not be tracked, so delete them right away. */
+                glusLogPrint(GLUS_LOG_ERROR, "glTF: out of memory while tracking %d textures", ctx.cacheCount);
+                for (i = 0; i < ctx.cacheCount; i++)
+                {
+                    glDeleteTextures(1, &ctx.cache[i].texture);
+                }
+            }
         }
         free(ctx.cache);
 
@@ -1715,7 +2023,7 @@ GLUSAPI GLUSvoid GLUSAPIENTRY glusGltfUpdateTransforms(GLUSgltfScene* scene)
     glusMatrix4x4Identityf(identity);
     for (ri = 0; ri < scene->rootNodeCount; ri++)
     {
-        gltfComputeWorldMatrix(scene, scene->rootNodes[ri], identity);
+        gltfComputeWorldMatrix(scene, scene->rootNodes[ri], identity, 0);
     }
     gltfComputeJointMatrices(scene);
     gltfRefreshPrimitiveTransforms(scene);

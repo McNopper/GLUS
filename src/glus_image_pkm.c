@@ -36,8 +36,20 @@ GLUSboolean GLUSAPIENTRY glusImageLoadPkm(const GLUSchar* filename, GLUSpkmimage
         return GLUS_FALSE;
     }
 
+    pkmimage->data   = 0;
+    pkmimage->width  = 0;
+    pkmimage->height = 0;
+
     if (!glusFileLoadBinary(filename, &binaryfile))
     {
+        return GLUS_FALSE;
+    }
+
+    // The header is 16 bytes long, so it has to be there before anything is read.
+    if (binaryfile.length < 16)
+    {
+        glusFileDestroyBinary(&binaryfile);
+
         return GLUS_FALSE;
     }
 
@@ -60,7 +72,7 @@ GLUSboolean GLUSAPIENTRY glusImageLoadPkm(const GLUSchar* filename, GLUSpkmimage
         return GLUS_FALSE;
     }
 
-    pkmimage->data = (GLUSubyte*)glusMemoryMalloc(pkmimage->imageSize * sizeof(GLUSubyte));
+    pkmimage->data = (GLUSubyte*)glusMemoryMalloc((size_t)pkmimage->imageSize * sizeof(GLUSubyte));
     if (!pkmimage->data)
     {
         glusFileDestroyBinary(&binaryfile);

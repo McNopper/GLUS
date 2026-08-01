@@ -8,6 +8,20 @@ shader utilities and more. GLUS lives in its own repository and is used by the
 
 ## Changelog
 
+### v1.1.1
+
+Security and correctness fixes across parsers, math, and platform layers:
+- **TGA loader**: bounded the RLE packet against the remaining output buffer (heap overflow); validated colour-map indices; skipped the Image ID field; validated `colorMapEntrySize`; endian-safe dimension decoding.
+- **HDR (Radiance) loader**: bounded the resolution-line read (stack overflow); checked `sscanf` return and validated dimensions (uninitialised variable / integer overflow); fixed signed-char comparison breaking new-style RLE for common widths.
+- **glTF loader**: call `cgltf_validate()` (arbitrary read/write primitives); clamp accessor component copy loop (heap overflow); validate morph-target and animation sampler sizes; add recursion depth guard; check all allocations; key texture cache on sRGB flag; reject path-traversal URIs.
+- **Wavefront OBJ/MTL loader**: bounded all `sscanf` conversions (`%31s` / `%255s`); bounds-checked face indices with relative-index resolution; fixed unsigned underflow in fan triangulation; NULL-guarded material pointer; bounded struct-field string copies.
+- **Math**: guard Perlin `% amplitude` against zero (SIGFPE); fix tangent-loop out-of-bounds write; add quaternion slerp shortest-path; fix vector reflect aliasing; fix disc UV formula; clamp `acosf`/`asinf` domains; fix oriented-box inverse rotation order.
+- **Shape generators**: tighten `glusShapeCreateDomef` minimum; guard degenerate-UV tangent determinant; validate adjacency edge indices.
+- **Program**: fix shader/program leaks on compile/link failure paths; handle zero-length info logs.
+- **Window/OS**: fix `tolower` on GLFW key codes (UB); fix button-release XOR (phantom held button); update cached dimensions on resize; check `XOpenDisplay` result; fix X resource leaks; fix `glusExtensionIsSupported` on core-profile contexts.
+- **Memory**: raise `glus_memory_nodm` alignment to `max_align_t`.
+- **Files**: fix `fopen(NULL)` UB; fix `ftell` truncation into 32-bit `GLUSint`; treat short writes as errors.
+
 ### v1.1.0
 
 - Added a **glTF 2.0 core loader** module (`glus_gltf.h` / `glus_gltf.c`):

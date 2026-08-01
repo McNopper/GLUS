@@ -26,7 +26,10 @@ GLUSboolean GLUSAPIENTRY glusShapeTexGenByAxesf(GLUSshape* shape, const GLUSfloa
 {
     GLUSuint i;
 
-    if (!shape)
+    // vertex, normal, tangent, bitangent, texCoords
+    GLUSuint stride = 4 + 3 + 3 + 3 + 2;
+
+    if (!shape || !shape->vertices)
     {
         return GLUS_FALSE;
     }
@@ -51,6 +54,16 @@ GLUSboolean GLUSAPIENTRY glusShapeTexGenByAxesf(GLUSshape* shape, const GLUSfloa
         shape->texCoords[2 * i + 1] = shape->vertices[4 * i + 1] * tSizeY + shape->vertices[4 * i + 2] * tSizeZ + tOffset;
     }
 
+    // The interleaved buffer is the one uploaded to the GPU, so it has to be refreshed as well.
+    if (shape->allAttributes)
+    {
+        for (i = 0; i < shape->numberVertices; i++)
+        {
+            shape->allAttributes[i * stride + 13] = shape->texCoords[i * 2 + 0];
+            shape->allAttributes[i * stride + 14] = shape->texCoords[i * 2 + 1];
+        }
+    }
+
     return GLUS_TRUE;
 }
 
@@ -58,7 +71,10 @@ GLUSboolean GLUSAPIENTRY glusShapeTexGenByPlanesf(GLUSshape* shape, const GLUSfl
 {
     GLUSuint i;
 
-    if (!shape)
+    // vertex, normal, tangent, bitangent, texCoords
+    GLUSuint stride = 4 + 3 + 3 + 3 + 2;
+
+    if (!shape || !shape->vertices)
     {
         return GLUS_FALSE;
     }
@@ -81,6 +97,16 @@ GLUSboolean GLUSAPIENTRY glusShapeTexGenByPlanesf(GLUSshape* shape, const GLUSfl
     {
         shape->texCoords[2 * i + 0] = glusPlaneDistancePoint4f(sPlane, &shape->vertices[4 * i]) * sSize + sOffset;
         shape->texCoords[2 * i + 1] = glusPlaneDistancePoint4f(tPlane, &shape->vertices[4 * i]) * tSize + tOffset;
+    }
+
+    // The interleaved buffer is the one uploaded to the GPU, so it has to be refreshed as well.
+    if (shape->allAttributes)
+    {
+        for (i = 0; i < shape->numberVertices; i++)
+        {
+            shape->allAttributes[i * stride + 13] = shape->texCoords[i * 2 + 0];
+            shape->allAttributes[i * stride + 14] = shape->texCoords[i * 2 + 1];
+        }
     }
 
     return GLUS_TRUE;

@@ -364,16 +364,34 @@ GLUSboolean GLUSAPIENTRY glusQuaternionSlerpf(GLUSfloat result[4], const GLUSflo
 
     GLUSfloat cosAlpha = quaternion0[0] * quaternion1[0] + quaternion0[1] * quaternion1[1] + quaternion0[2] * quaternion1[2] + quaternion0[3] * quaternion1[3];
 
+    GLUSfloat q1[4];
+
     GLUSfloat alpha;
     GLUSfloat sinAlpha;
 
     GLUSfloat a;
     GLUSfloat b;
 
+    // Quaternions double cover the rotations. Flip the second one, so that always the
+    // shortest arc is taken.
+    if (cosAlpha < 0.0f)
+    {
+        for (i = 0; i < 4; i++)
+        {
+            q1[i] = -quaternion1[i];
+        }
+
+        cosAlpha = -cosAlpha;
+    }
+    else
+    {
+        glusQuaternionCopyf(q1, quaternion1);
+    }
+
     // Fall back to nlerp when quaternions are nearly parallel to avoid numerical instability.
     if (cosAlpha > 0.95f)
     {
-        return glusQuaternionNlerpf(result, quaternion0, quaternion1, t);
+        return glusQuaternionNlerpf(result, quaternion0, q1, t);
     }
 
     alpha = acosf(glusMathClampf(cosAlpha, -1.0f, 1.0f));
@@ -393,7 +411,7 @@ GLUSboolean GLUSAPIENTRY glusQuaternionSlerpf(GLUSfloat result[4], const GLUSflo
 
     for (i = 0; i < 4; i++)
     {
-        result[i] = a * quaternion0[i] + b * quaternion1[i];
+        result[i] = a * quaternion0[i] + b * q1[i];
     }
 
     return GLUS_TRUE;
@@ -419,13 +437,58 @@ GLUSboolean GLUSAPIENTRY glusQuaternionNlerpf(GLUSfloat result[4], const GLUSflo
 GLUSboolean GLUSAPIENTRY glusQuaternionRotationBetweenVectorsf(GLUSfloat result[4], const GLUSfloat vector0[3], const GLUSfloat vector1[3])
 {
     GLUSfloat cross[3];
+    GLUSfloat axis[3];
+
+    GLUSfloat lengthProduct;
+    GLUSfloat w;
+
+    // Using the product of the lengths keeps the formula valid for non unit vectors.
+    lengthProduct = sqrtf(glusVector3Dotf(vector0, vector0) * glusVector3Dotf(vector1, vector1));
+
+    if (lengthProduct == 0.0f)
+    {
+        return GLUS_FALSE;
+    }
+
+    w = lengthProduct + glusVector3Dotf(vector0, vector1);
+
+    // The vectors are anti parallel. The rotation axis is not defined by the cross product,
+    // so an arbitrary axis perpendicular to the first vector is chosen.
+    if (w <= 1.0e-6f * lengthProduct)
+    {
+        axis[0] = 0.0f;
+        axis[1] = 0.0f;
+        axis[2] = 0.0f;
+
+        if (fabsf(vector0[0]) <= fabsf(vector0[1]) && fabsf(vector0[0]) <= fabsf(vector0[2]))
+        {
+            axis[0] = 1.0f;
+        }
+        else if (fabsf(vector0[1]) <= fabsf(vector0[2]))
+        {
+            axis[1] = 1.0f;
+        }
+        else
+        {
+            axis[2] = 1.0f;
+        }
+
+        glusVector3Crossf(cross, vector0, axis);
+
+        result[0] = cross[0];
+        result[1] = cross[1];
+        result[2] = cross[2];
+        result[3] = 0.0f;
+
+        return glusQuaternionNormalizef(result);
+    }
 
     glusVector3Crossf(cross, vector0, vector1);
 
     result[0] = cross[0];
     result[1] = cross[1];
     result[2] = cross[2];
-    result[3] = glusVector3Dotf(vector0, vector1) + 1.0f;
+    result[3] = w;
 
     return glusQuaternionNormalizef(result);
 }

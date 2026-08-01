@@ -40,7 +40,8 @@ static GLUSboolean glusShapeFindIndexByIndicesf(GLUSuint* adjacentIndex, GLUSuin
 
     GLUSuint equalIndices;
 
-    GLUSuint edgeIndices[2];
+    GLUSuint    edgeIndices[2];
+    GLUSboolean edgeIndicesSet[2];
 
     if (!adjacentIndex || !shape)
     {
@@ -60,7 +61,19 @@ static GLUSboolean glusShapeFindIndexByIndicesf(GLUSuint* adjacentIndex, GLUSuin
             continue;
         }
 
+        // Skip degenerated triangles, as they can match the same edge slot twice.
+        if (shape->indices[i * 3 + 0] == shape->indices[i * 3 + 1] || shape->indices[i * 3 + 0] == shape->indices[i * 3 + 2] || shape->indices[i * 3 + 1] == shape->indices[i * 3 + 2])
+        {
+            continue;
+        }
+
         equalIndices = 0;
+
+        edgeIndices[0] = 0;
+        edgeIndices[1] = 0;
+
+        edgeIndicesSet[0] = GLUS_FALSE;
+        edgeIndicesSet[1] = GLUS_FALSE;
 
         for (k = 0; k < 3; k++)
         {
@@ -70,14 +83,16 @@ static GLUSboolean glusShapeFindIndexByIndicesf(GLUSuint* adjacentIndex, GLUSuin
                 {
                     equalIndices++;
 
-                    edgeIndices[m - edge] = shape->indices[i * 3 + k];
+                    edgeIndices[m - edge]    = shape->indices[i * 3 + k];
+                    edgeIndicesSet[m - edge] = GLUS_TRUE;
 
                     break;
                 }
             }
         }
 
-        if (equalIndices == 2)
+        // Both edge indices have to be found. Otherwise the same slot was matched twice.
+        if (equalIndices == 2 && edgeIndicesSet[0] && edgeIndicesSet[1])
         {
             for (k = 0; k < 3; k++)
             {
@@ -102,7 +117,8 @@ static GLUSboolean glusShapeFindIndexByVerticesf(GLUSuint* adjacentIndex, GLUSui
 
     GLUSuint equalVertices, walkerIndex, searchIndex;
 
-    GLUSuint edgeIndices[2];
+    GLUSuint    edgeIndices[2];
+    GLUSboolean edgeIndicesSet[2];
 
     if (!adjacentIndex || !shape)
     {
@@ -122,7 +138,19 @@ static GLUSboolean glusShapeFindIndexByVerticesf(GLUSuint* adjacentIndex, GLUSui
             continue;
         }
 
+        // Skip degenerated triangles, as they can match the same edge slot twice.
+        if (shape->indices[i * 3 + 0] == shape->indices[i * 3 + 1] || shape->indices[i * 3 + 0] == shape->indices[i * 3 + 2] || shape->indices[i * 3 + 1] == shape->indices[i * 3 + 2])
+        {
+            continue;
+        }
+
         equalVertices = 0;
+
+        edgeIndices[0] = 0;
+        edgeIndices[1] = 0;
+
+        edgeIndicesSet[0] = GLUS_FALSE;
+        edgeIndicesSet[1] = GLUS_FALSE;
 
         for (k = 0; k < 3; k++)
         {
@@ -138,14 +166,16 @@ static GLUSboolean glusShapeFindIndexByVerticesf(GLUSuint* adjacentIndex, GLUSui
                 {
                     equalVertices++;
 
-                    edgeIndices[m - edge] = walkerIndex;
+                    edgeIndices[m - edge]    = walkerIndex;
+                    edgeIndicesSet[m - edge] = GLUS_TRUE;
 
                     break;
                 }
             }
         }
 
-        if (equalVertices == 2)
+        // Both edge indices have to be found. Otherwise the same slot was matched twice.
+        if (equalVertices == 2 && edgeIndicesSet[0] && edgeIndicesSet[1])
         {
             for (k = 0; k < 3; k++)
             {
@@ -199,7 +229,7 @@ GLUSboolean GLUSAPIENTRY glusShapeCreateAdjacencyIndicesf(GLUSshape* adjacencySh
     adjacencyShape->numberIndices = numberIndices;
 
     glusMemoryFree(adjacencyShape->indices);
-    adjacencyShape->indices = (GLUSuint*)glusMemoryMalloc(numberIndices * sizeof(GLUSuint));
+    adjacencyShape->indices = (GLUSindex*)glusMemoryMalloc(numberIndices * sizeof(GLUSindex));
 
     adjacencyShape->mode = GLUS_TRIANGLES_ADJACENCY;
 
@@ -248,7 +278,7 @@ GLUSboolean GLUSAPIENTRY glusShapeCreateAdjacencyIndicesf(GLUSshape* adjacencySh
                 continue;
             }
 
-            glusLogPrint(GLUS_LOG_WARNING, "Triangle %d with edge %d: No adjacent index found!", i, edge);
+            glusLogPrint(GLUS_LOG_WARNING, "Triangle %u with edge %u: No adjacent index found!", i, edge);
         }
     }
 

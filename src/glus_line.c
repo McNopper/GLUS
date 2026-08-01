@@ -41,7 +41,7 @@ static GLUSboolean glusLineCheckf(GLUSline* line)
         return GLUS_FALSE;
     }
 
-    return line->vertices && line->numberIndices;
+    return line->vertices && line->indices && line->numberVertices && line->numberIndices;
 }
 
 GLUSboolean GLUSAPIENTRY glusLineCreateLinef(GLUSline* line, const GLUSfloat point0[4], const GLUSfloat point1[4])

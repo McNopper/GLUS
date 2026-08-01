@@ -24,6 +24,9 @@
 
 GLUSboolean GLUSAPIENTRY glusScreenshotUseTga(GLUSint x, GLUSint y, const GLUStgaimage* screenshot)
 {
+    GLUSint packAlignment;
+    GLUSint unpackAlignment;
+
     if (!screenshot)
     {
         return GLUS_FALSE;
@@ -38,10 +41,17 @@ GLUSboolean GLUSAPIENTRY glusScreenshotUseTga(GLUSint x, GLUSint y, const GLUStg
 
     glFlush();
 
+    // Save the alignment, as it is a global state, which the application relies on.
+    glGetIntegerv(GLUS_PACK_ALIGNMENT, &packAlignment);
+    glGetIntegerv(GLUS_UNPACK_ALIGNMENT, &unpackAlignment);
+
     glPixelStorei(GLUS_PACK_ALIGNMENT, 1);
     glPixelStorei(GLUS_UNPACK_ALIGNMENT, 1);
 
     glReadPixels(x, y, screenshot->width, screenshot->height, GLUS_RGBA, GLUS_UNSIGNED_BYTE, screenshot->data);
+
+    glPixelStorei(GLUS_PACK_ALIGNMENT, packAlignment);
+    glPixelStorei(GLUS_UNPACK_ALIGNMENT, unpackAlignment);
 
     return GLUS_TRUE;
 }
@@ -53,14 +63,20 @@ GLUSboolean GLUSAPIENTRY glusScreenshotCreateTga(GLUSint x, GLUSint y, GLUSsizei
         return GLUS_FALSE;
     }
 
-    screenshot->data = (GLUSubyte*)glusMemoryMalloc(width * height * 4);
+    // Width and height are stored as unsigned short in the TGA image.
+    if (width < 1 || height < 1 || width > 65535 || height > 65535)
+    {
+        return GLUS_FALSE;
+    }
+
+    screenshot->data = (GLUSubyte*)glusMemoryMalloc((size_t)width * (size_t)height * 4);
     if (!screenshot->data)
     {
         return GLUS_FALSE;
     }
     screenshot->format = GLUS_RGBA;
-    screenshot->width  = width;
-    screenshot->height = height;
+    screenshot->width  = (GLUSushort)width;
+    screenshot->height = (GLUSushort)height;
     screenshot->depth  = 1;
 
     return glusScreenshotUseTga(x, y, screenshot);

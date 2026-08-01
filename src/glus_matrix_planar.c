@@ -82,7 +82,9 @@ GLUSvoid GLUSAPIENTRY glusMatrix4x4PlanarShadowDirectionalLightf(GLUSfloat matri
 GLUSvoid GLUSAPIENTRY glusMatrix4x4PlanarReflectionf(GLUSfloat matrix[16], const GLUSfloat reflectionPlane[4])
 {
     GLUSfloat pointOnPlane[4];
+    GLUSfloat planeNormal[3];
     GLUSfloat yUpNormal[3];
+    GLUSfloat nDotY;
     GLUSfloat rotationAngle;
     GLUSfloat rotationAxis[3];
 
@@ -92,13 +94,44 @@ GLUSvoid GLUSAPIENTRY glusMatrix4x4PlanarReflectionf(GLUSfloat matrix[16], const
     yUpNormal[1] = 1.0f;
     yUpNormal[2] = 0.0f;
 
-    rotationAngle = glusMathRadToDegf(acosf(glusVector3Dotf(reflectionPlane, yUpNormal)));
+    // The plane normal is not required to be normalized, so do it here. Otherwise acos
+    // would receive an argument outside of its domain and return not a number.
+    glusVector3Copyf(planeNormal, reflectionPlane);
 
-    if (rotationAngle != 0.0f)
+    if (!glusVector3Normalizef(planeNormal))
     {
-        glusVector3Crossf(rotationAxis, yUpNormal, reflectionPlane);
+        glusMatrix4x4Identityf(matrix);
 
-        glusVector3Normalizef(rotationAxis);
+        return;
+    }
+
+    nDotY = glusMathClampf(glusVector3Dotf(planeNormal, yUpNormal), -1.0f, 1.0f);
+
+    rotationAngle = glusMathRadToDegf(acosf(nDotY));
+
+    rotationAxis[0] = 1.0f;
+    rotationAxis[1] = 0.0f;
+    rotationAxis[2] = 0.0f;
+
+    if (nDotY >= 1.0f)
+    {
+        // The plane normal already points up, so no rotation is needed.
+        rotationAngle = 0.0f;
+    }
+    else if (nDotY <= -1.0f)
+    {
+        // The plane normal points exactly down. The cross product would be the zero vector,
+        // so rotate by 180 degrees around an arbitrary axis perpendicular to the up vector.
+        rotationAngle = 180.0f;
+    }
+    else if (rotationAngle != 0.0f)
+    {
+        glusVector3Crossf(rotationAxis, yUpNormal, planeNormal);
+
+        if (!glusVector3Normalizef(rotationAxis))
+        {
+            rotationAngle = 0.0f;
+        }
     }
 
     glusMatrix4x4Identityf(matrix);

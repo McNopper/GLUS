@@ -67,7 +67,7 @@ GLUSboolean GLUSAPIENTRY glusRandomHammersleyf(GLUSfloat result[2], const GLUSui
     }
 
     // If not all bits are used: Check, if sample is out of bounds.
-    if (m < 32 && sample >= (GLUSuint)(1 << m))
+    if (m < 32 && sample >= (1u << m))
     {
         return GLUS_FALSE;
     }

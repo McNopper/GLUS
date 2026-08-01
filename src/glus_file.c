@@ -22,6 +22,8 @@
 
 #include "GL/glus.h"
 
+#include <errno.h>
+
 GLUSboolean _glusFileCheckRead(FILE* f, size_t actualRead, size_t expectedRead)
 {
     if (!f)
@@ -46,14 +48,12 @@ GLUSboolean _glusFileCheckWrite(FILE* f, size_t actualWrite, size_t expectedWrit
         return GLUS_FALSE;
     }
 
+    // Note: A short write is always an error, no matter if the error indicator is set or not.
     if (actualWrite < expectedWrite)
     {
-        if (ferror(f))
-        {
-            glusFileClose(f);
+        glusFileClose(f);
 
-            return GLUS_FALSE;
-        }
+        return GLUS_FALSE;
     }
 
     return GLUS_TRUE;
@@ -65,8 +65,10 @@ FILE* GLUSAPIENTRY glusFileOpen(const char* filename, const char* mode)
 
     if (!filename)
     {
-        // Note: Automatic errno setting.
-        return fopen(filename, mode);
+        // Note: Passing a null pointer to fopen is undefined behaviour.
+        errno = EINVAL;
+
+        return 0;
     }
 
     if (strlen(filename) + strlen(GLUS_BASE_DIRECTORY) >= GLUS_MAX_FILENAME)

@@ -28,6 +28,62 @@
 #define GLUS_MAX_LINE_ATTRIBUTES GLUS_MAX_VERTICES
 #define GLUS_BUFFERSIZE 1024
 
+static GLUSvoid glusWavefrontCopyString(GLUSchar* destination, size_t destinationSize, const GLUSchar* source)
+{
+    size_t length;
+
+    if (!destination || destinationSize == 0)
+    {
+        return;
+    }
+
+    if (!source)
+    {
+        destination[0] = '\0';
+
+        return;
+    }
+
+    length = strlen(source);
+
+    if (length > destinationSize - 1)
+    {
+        length = destinationSize - 1;
+    }
+
+    memcpy(destination, source, length);
+
+    destination[length] = '\0';
+}
+
+/**
+ * Resolves a Wavefront index, which is either one based or relative to the end. Returns -1, if the index is not usable.
+ */
+static GLUSint glusWavefrontResolveIndex(GLUSint index, GLUSuint count)
+{
+    if (index > 0)
+    {
+        index--;
+    }
+    else if (index < 0)
+    {
+        index += (GLUSint)count;
+    }
+    else
+    {
+        // Zero is not a valid Wavefront index, so the value was not given at all.
+
+        return -1;
+    }
+
+    if (index < 0 || index >= (GLUSint)count)
+    {
+        return -1;
+    }
+
+    return index;
+}
+
 static GLUSboolean glusWavefrontMallocTempMemoryLine(GLUSfloat** vertices, GLUSindex** indices)
 {
     if (!vertices || !indices)
@@ -334,7 +390,9 @@ static GLUSboolean glusWavefrontLoadMaterial(const GLUSchar* filename, GLUSmater
         {
             GLUSmaterialList* newMaterialList = 0;
 
-            sscanf(checkBuffer, "%s %s", identifier, name);
+            name[0] = '\0';
+
+            sscanf(checkBuffer, "%31s %255s", identifier, name);
 
             newMaterialList = (GLUSmaterialList*)glusMemoryMalloc(sizeof(GLUSmaterialList));
 
@@ -351,7 +409,7 @@ static GLUSboolean glusWavefrontLoadMaterial(const GLUSchar* filename, GLUSmater
 
             glusWavefrontInitMaterial(&newMaterialList->material);
 
-            strcpy(newMaterialList->material.name, name);
+            glusWavefrontCopyString(newMaterialList->material.name, sizeof(newMaterialList->material.name), name);
 
             if (*materialList == 0)
             {
@@ -364,83 +422,103 @@ static GLUSboolean glusWavefrontLoadMaterial(const GLUSchar* filename, GLUSmater
 
             currentMaterialList = newMaterialList;
         }
+        else if (currentMaterialList == 0)
+        {
+            // Without a material, there is nothing the following entries could be stored in.
+
+            continue;
+        }
         else if (strncmp(checkBuffer, "ke", 2) == 0)
         {
-            sscanf(checkBuffer, "%s %f %f %f", identifier, &currentMaterialList->material.emissive[0], &currentMaterialList->material.emissive[1], &currentMaterialList->material.emissive[2]);
+            sscanf(checkBuffer, "%31s %f %f %f", identifier, &currentMaterialList->material.emissive[0], &currentMaterialList->material.emissive[1], &currentMaterialList->material.emissive[2]);
 
             currentMaterialList->material.emissive[3] = 1.0f;
         }
         else if (strncmp(checkBuffer, "ka", 2) == 0)
         {
-            sscanf(checkBuffer, "%s %f %f %f", identifier, &currentMaterialList->material.ambient[0], &currentMaterialList->material.ambient[1], &currentMaterialList->material.ambient[2]);
+            sscanf(checkBuffer, "%31s %f %f %f", identifier, &currentMaterialList->material.ambient[0], &currentMaterialList->material.ambient[1], &currentMaterialList->material.ambient[2]);
 
             currentMaterialList->material.ambient[3] = 1.0f;
         }
         else if (strncmp(checkBuffer, "kd", 2) == 0)
         {
-            sscanf(checkBuffer, "%s %f %f %f", identifier, &currentMaterialList->material.diffuse[0], &currentMaterialList->material.diffuse[1], &currentMaterialList->material.diffuse[2]);
+            sscanf(checkBuffer, "%31s %f %f %f", identifier, &currentMaterialList->material.diffuse[0], &currentMaterialList->material.diffuse[1], &currentMaterialList->material.diffuse[2]);
 
             currentMaterialList->material.diffuse[3] = 1.0f;
         }
         else if (strncmp(checkBuffer, "ks", 2) == 0)
         {
-            sscanf(checkBuffer, "%s %f %f %f", identifier, &currentMaterialList->material.specular[0], &currentMaterialList->material.specular[1], &currentMaterialList->material.specular[2]);
+            sscanf(checkBuffer, "%31s %f %f %f", identifier, &currentMaterialList->material.specular[0], &currentMaterialList->material.specular[1], &currentMaterialList->material.specular[2]);
 
             currentMaterialList->material.specular[3] = 1.0f;
         }
         else if (strncmp(checkBuffer, "ns", 2) == 0)
         {
-            sscanf(checkBuffer, "%s %f", identifier, &currentMaterialList->material.shininess);
+            sscanf(checkBuffer, "%31s %f", identifier, &currentMaterialList->material.shininess);
         }
-        else if (strncmp(checkBuffer, "d", 1) == 0 || strncmp(checkBuffer, "Tr", 2) == 0)
+        else if (strncmp(checkBuffer, "d", 1) == 0 || strncmp(checkBuffer, "tr", 2) == 0)
         {
-            sscanf(checkBuffer, "%s %f", identifier, &currentMaterialList->material.transparency);
+            sscanf(checkBuffer, "%31s %f", identifier, &currentMaterialList->material.transparency);
         }
         else if (strncmp(checkBuffer, "ni", 2) == 0)
         {
-            sscanf(checkBuffer, "%s %f", identifier, &currentMaterialList->material.indexOfRefraction);
+            sscanf(checkBuffer, "%31s %f", identifier, &currentMaterialList->material.indexOfRefraction);
         }
         else if (strncmp(checkBuffer, "map_ke", 6) == 0)
         {
-            sscanf(checkBuffer, "%s %s", identifier, name);
+            name[0] = '\0';
 
-            strcpy(currentMaterialList->material.emissiveTextureFilename, name);
+            sscanf(checkBuffer, "%31s %255s", identifier, name);
+
+            glusWavefrontCopyString(currentMaterialList->material.emissiveTextureFilename, sizeof(currentMaterialList->material.emissiveTextureFilename), name);
         }
         else if (strncmp(checkBuffer, "map_ka", 6) == 0)
         {
-            sscanf(checkBuffer, "%s %s", identifier, name);
+            name[0] = '\0';
 
-            strcpy(currentMaterialList->material.ambientTextureFilename, name);
+            sscanf(checkBuffer, "%31s %255s", identifier, name);
+
+            glusWavefrontCopyString(currentMaterialList->material.ambientTextureFilename, sizeof(currentMaterialList->material.ambientTextureFilename), name);
         }
         else if (strncmp(checkBuffer, "map_kd", 6) == 0)
         {
-            sscanf(checkBuffer, "%s %s", identifier, name);
+            name[0] = '\0';
 
-            strcpy(currentMaterialList->material.diffuseTextureFilename, name);
+            sscanf(checkBuffer, "%31s %255s", identifier, name);
+
+            glusWavefrontCopyString(currentMaterialList->material.diffuseTextureFilename, sizeof(currentMaterialList->material.diffuseTextureFilename), name);
         }
         else if (strncmp(checkBuffer, "map_ks", 6) == 0)
         {
-            sscanf(checkBuffer, "%s %s", identifier, name);
+            name[0] = '\0';
 
-            strcpy(currentMaterialList->material.specularTextureFilename, name);
+            sscanf(checkBuffer, "%31s %255s", identifier, name);
+
+            glusWavefrontCopyString(currentMaterialList->material.specularTextureFilename, sizeof(currentMaterialList->material.specularTextureFilename), name);
         }
-        else if (strncmp(checkBuffer, "map_d", 5) == 0 || strncmp(checkBuffer, "map_Tr", 6) == 0)
+        else if (strncmp(checkBuffer, "map_d", 5) == 0 || strncmp(checkBuffer, "map_tr", 6) == 0)
         {
-            sscanf(checkBuffer, "%s %s", identifier, name);
+            name[0] = '\0';
 
-            strcpy(currentMaterialList->material.transparencyTextureFilename, name);
+            sscanf(checkBuffer, "%31s %255s", identifier, name);
+
+            glusWavefrontCopyString(currentMaterialList->material.transparencyTextureFilename, sizeof(currentMaterialList->material.transparencyTextureFilename), name);
         }
         else if (strncmp(checkBuffer, "map_bump", 8) == 0 || strncmp(checkBuffer, "bump", 4) == 0)
         {
-            sscanf(checkBuffer, "%s %s", identifier, name);
+            name[0] = '\0';
 
-            strcpy(currentMaterialList->material.bumpTextureFilename, name);
+            sscanf(checkBuffer, "%31s %255s", identifier, name);
+
+            glusWavefrontCopyString(currentMaterialList->material.bumpTextureFilename, sizeof(currentMaterialList->material.bumpTextureFilename), name);
         }
         else if (strncmp(checkBuffer, "illum", 5) == 0)
         {
             GLUSint illum;
 
-            sscanf(checkBuffer, "%s %d", identifier, &illum);
+            illum = 0;
+
+            sscanf(checkBuffer, "%31s %d", identifier, &illum);
 
             // Only setting reflection and refraction depending on illumination model.
             switch (illum)
@@ -647,7 +725,24 @@ GLUSboolean _glusWavefrontMove(GLUSwavefront* wavefront, GLUSshape* shape)
 
         if (!groupWalker->group.indices)
         {
-            memset(wavefront, 0, sizeof(GLUSwavefront));
+            // The vertex buffers have already been moved, so they have to be freed here.
+
+            glusMemoryFree(wavefront->vertices);
+            glusMemoryFree(wavefront->normals);
+            glusMemoryFree(wavefront->texCoords);
+            glusMemoryFree(wavefront->tangents);
+            glusMemoryFree(wavefront->bitangents);
+
+            wavefront->vertices       = 0;
+            wavefront->normals        = 0;
+            wavefront->texCoords      = 0;
+            wavefront->tangents       = 0;
+            wavefront->bitangents     = 0;
+            wavefront->numberVertices = 0;
+
+            glusMemoryFree(shape->indices);
+
+            memset(shape, 0, sizeof(GLUSshape));
 
             return GLUS_FALSE;
         }
@@ -718,7 +813,7 @@ GLUSboolean _glusWavefrontParse(const GLUSchar* filename, GLUSshape* shape, GLUS
 
     // Material and groups
 
-    GLUSchar name[GLUS_MAX_STRING];
+    GLUSchar name[GLUS_MAX_STRING] = {'\0'};
 
     GLUSuint numberIndicesGroup = 0;
     GLUSuint numberMaterials    = 0;
@@ -787,7 +882,14 @@ GLUSboolean _glusWavefrontParse(const GLUSchar* filename, GLUSshape* shape, GLUS
         {
             if (strncmp(buffer, "mtllib", 6) == 0)
             {
-                sscanf(buffer, "%s %s", identifier, name);
+                name[0] = '\0';
+
+                if (sscanf(buffer, "%31s %255s", identifier, name) != 2)
+                {
+                    // Without a file name there is nothing to load.
+
+                    continue;
+                }
 
                 if (numberMaterials == 0)
                 {
@@ -807,6 +909,12 @@ GLUSboolean _glusWavefrontParse(const GLUSchar* filename, GLUSshape* shape, GLUS
             }
             else if (strncmp(buffer, "usemtl", 6) == 0)
             {
+                // Parse the material name first, as it is needed for the group as well.
+
+                name[0] = '\0';
+
+                sscanf(buffer, "%31s %255s", identifier, name);
+
                 if (!currentGroupList || currentGroupList->group.materialName[0] != '\0')
                 {
                     GLUSgroupList* newGroupList;
@@ -824,7 +932,7 @@ GLUSboolean _glusWavefrontParse(const GLUSchar* filename, GLUSshape* shape, GLUS
 
                     memset(newGroupList, 0, sizeof(GLUSgroupList));
 
-                    strcpy(newGroupList->group.name, name);
+                    glusWavefrontCopyString(newGroupList->group.name, sizeof(newGroupList->group.name), name);
 
                     if (numberGroups == 0)
                     {
@@ -856,15 +964,15 @@ GLUSboolean _glusWavefrontParse(const GLUSchar* filename, GLUSshape* shape, GLUS
 
                 //
 
-                sscanf(buffer, "%s %s", identifier, name);
-
-                strcpy(currentGroupList->group.materialName, name);
+                glusWavefrontCopyString(currentGroupList->group.materialName, sizeof(currentGroupList->group.materialName), name);
             }
             else if (strncmp(buffer, "g", 1) == 0)
             {
                 GLUSgroupList* newGroupList;
 
-                sscanf(buffer, "%s %s", identifier, name);
+                name[0] = '\0';
+
+                sscanf(buffer, "%31s %255s", identifier, name);
 
                 newGroupList = (GLUSgroupList*)glusMemoryMalloc(sizeof(GLUSgroupList));
 
@@ -879,7 +987,7 @@ GLUSboolean _glusWavefrontParse(const GLUSchar* filename, GLUSshape* shape, GLUS
 
                 memset(newGroupList, 0, sizeof(GLUSgroupList));
 
-                strcpy(newGroupList->group.name, name);
+                glusWavefrontCopyString(newGroupList->group.name, sizeof(newGroupList->group.name), name);
 
                 if (numberGroups == 0)
                 {
@@ -943,9 +1051,11 @@ GLUSboolean _glusWavefrontParse(const GLUSchar* filename, GLUSshape* shape, GLUS
                     memcpy(&currentObjectList->object, wavefront, sizeof(GLUSwavefront));
                 }
 
-                sscanf(buffer, "%s %s", identifier, name);
+                name[0] = '\0';
 
-                strcpy(wavefront->name, name);
+                sscanf(buffer, "%31s %255s", identifier, name);
+
+                glusWavefrontCopyString(wavefront->name, sizeof(wavefront->name), name);
 
                 // Always create a new object.
 
@@ -987,7 +1097,9 @@ GLUSboolean _glusWavefrontParse(const GLUSchar* filename, GLUSshape* shape, GLUS
             {
                 GLUSgroupList* newGroupList;
 
-                sscanf(buffer, "%s %s", identifier, name);
+                name[0] = '\0';
+
+                sscanf(buffer, "%31s %255s", identifier, name);
 
                 newGroupList = (GLUSgroupList*)glusMemoryMalloc(sizeof(GLUSgroupList));
 
@@ -1002,7 +1114,7 @@ GLUSboolean _glusWavefrontParse(const GLUSchar* filename, GLUSshape* shape, GLUS
 
                 memset(newGroupList, 0, sizeof(GLUSgroupList));
 
-                strcpy(newGroupList->group.name, name);
+                glusWavefrontCopyString(newGroupList->group.name, sizeof(newGroupList->group.name), name);
 
                 if (numberGroups == 0)
                 {
@@ -1056,7 +1168,7 @@ GLUSboolean _glusWavefrontParse(const GLUSchar* filename, GLUSshape* shape, GLUS
                 return GLUS_FALSE;
             }
 
-            sscanf(buffer, "%s %f %f", identifier, &s, &t);
+            sscanf(buffer, "%31s %f %f", identifier, &s, &t);
 
             texCoords[2 * numberTexCoords + 0] = s;
             texCoords[2 * numberTexCoords + 1] = t;
@@ -1074,7 +1186,7 @@ GLUSboolean _glusWavefrontParse(const GLUSchar* filename, GLUSshape* shape, GLUS
                 return GLUS_FALSE;
             }
 
-            sscanf(buffer, "%s %f %f %f", identifier, &x, &y, &z);
+            sscanf(buffer, "%31s %f %f %f", identifier, &x, &y, &z);
 
             normals[3 * numberNormals + 0] = x;
             normals[3 * numberNormals + 1] = y;
@@ -1093,7 +1205,7 @@ GLUSboolean _glusWavefrontParse(const GLUSchar* filename, GLUSshape* shape, GLUS
                 return GLUS_FALSE;
             }
 
-            sscanf(buffer, "%s %f %f %f", identifier, &x, &y, &z);
+            sscanf(buffer, "%31s %f %f %f", identifier, &x, &y, &z);
 
             vertices[4 * numberVertices + 0] = x;
             vertices[4 * numberVertices + 1] = y;
@@ -1108,7 +1220,9 @@ GLUSboolean _glusWavefrontParse(const GLUSchar* filename, GLUSshape* shape, GLUS
 
             GLUSint vIndex, vtIndex, vnIndex;
 
-            GLUSuint edgeCount = 0;
+            GLUSuint emittedVertices  = 0;
+            GLUSuint emittedNormals   = 0;
+            GLUSuint emittedTexCoords = 0;
 
             token = strtok(buffer, " \t");
             token = strtok(0, " \n");
@@ -1150,9 +1264,9 @@ GLUSboolean _glusWavefrontParse(const GLUSchar* filename, GLUSshape* shape, GLUS
 
             while (token != 0)
             {
-                vIndex  = -1;
-                vtIndex = -1;
-                vnIndex = -1;
+                vIndex  = 0;
+                vtIndex = 0;
+                vnIndex = 0;
 
                 switch (facesEncoding)
                 {
@@ -1170,13 +1284,15 @@ GLUSboolean _glusWavefrontParse(const GLUSchar* filename, GLUSshape* shape, GLUS
                     break;
                 }
 
-                vIndex--;
-                vtIndex--;
-                vnIndex--;
+                // Resolve one based and relative indices and reject everything out of bounds.
+
+                vIndex  = glusWavefrontResolveIndex(vIndex, numberVertices);
+                vtIndex = glusWavefrontResolveIndex(vtIndex, numberTexCoords);
+                vnIndex = glusWavefrontResolveIndex(vnIndex, numberNormals);
 
                 if (vIndex >= 0)
                 {
-                    if (edgeCount < 3)
+                    if (emittedVertices < 3)
                     {
                         if (totalNumberVertices >= GLUS_MAX_TRIANGLE_ATTRIBUTES)
                         {
@@ -1191,6 +1307,7 @@ GLUSboolean _glusWavefrontParse(const GLUSchar* filename, GLUSshape* shape, GLUS
 
                         totalNumberVertices++;
                         numberIndicesGroup++;
+                        emittedVertices++;
                     }
                     else
                     {
@@ -1203,17 +1320,18 @@ GLUSboolean _glusWavefrontParse(const GLUSchar* filename, GLUSshape* shape, GLUS
                             return GLUS_FALSE;
                         }
 
-                        memcpy(&triangleVertices[4 * (totalNumberVertices)], &triangleVertices[4 * (totalNumberVertices - edgeCount)], 4 * sizeof(GLUSfloat));
+                        memcpy(&triangleVertices[4 * (totalNumberVertices)], &triangleVertices[4 * (totalNumberVertices - emittedVertices)], 4 * sizeof(GLUSfloat));
                         memcpy(&triangleVertices[4 * (totalNumberVertices + 1)], &triangleVertices[4 * (totalNumberVertices - 1)], 4 * sizeof(GLUSfloat));
                         memcpy(&triangleVertices[4 * (totalNumberVertices + 2)], &vertices[4 * vIndex], 4 * sizeof(GLUSfloat));
 
                         totalNumberVertices += 3;
                         numberIndicesGroup += 3;
+                        emittedVertices += 3;
                     }
                 }
                 if (vnIndex >= 0)
                 {
-                    if (edgeCount < 3)
+                    if (emittedNormals < 3)
                     {
                         if (totalNumberNormals >= GLUS_MAX_TRIANGLE_ATTRIBUTES)
                         {
@@ -1227,6 +1345,7 @@ GLUSboolean _glusWavefrontParse(const GLUSchar* filename, GLUSshape* shape, GLUS
                         memcpy(&triangleNormals[3 * totalNumberNormals], &normals[3 * vnIndex], 3 * sizeof(GLUSfloat));
 
                         totalNumberNormals++;
+                        emittedNormals++;
                     }
                     else
                     {
@@ -1239,16 +1358,17 @@ GLUSboolean _glusWavefrontParse(const GLUSchar* filename, GLUSshape* shape, GLUS
                             return GLUS_FALSE;
                         }
 
-                        memcpy(&triangleNormals[3 * (totalNumberNormals)], &triangleNormals[3 * (totalNumberNormals - edgeCount)], 3 * sizeof(GLUSfloat));
+                        memcpy(&triangleNormals[3 * (totalNumberNormals)], &triangleNormals[3 * (totalNumberNormals - emittedNormals)], 3 * sizeof(GLUSfloat));
                         memcpy(&triangleNormals[3 * (totalNumberNormals + 1)], &triangleNormals[3 * (totalNumberNormals - 1)], 3 * sizeof(GLUSfloat));
                         memcpy(&triangleNormals[3 * (totalNumberNormals + 2)], &normals[3 * vnIndex], 3 * sizeof(GLUSfloat));
 
                         totalNumberNormals += 3;
+                        emittedNormals += 3;
                     }
                 }
                 if (vtIndex >= 0)
                 {
-                    if (edgeCount < 3)
+                    if (emittedTexCoords < 3)
                     {
                         if (totalNumberTexCoords >= GLUS_MAX_TRIANGLE_ATTRIBUTES)
                         {
@@ -1262,6 +1382,7 @@ GLUSboolean _glusWavefrontParse(const GLUSchar* filename, GLUSshape* shape, GLUS
                         memcpy(&triangleTexCoords[2 * totalNumberTexCoords], &texCoords[2 * vtIndex], 2 * sizeof(GLUSfloat));
 
                         totalNumberTexCoords++;
+                        emittedTexCoords++;
                     }
                     else
                     {
@@ -1274,15 +1395,14 @@ GLUSboolean _glusWavefrontParse(const GLUSchar* filename, GLUSshape* shape, GLUS
                             return GLUS_FALSE;
                         }
 
-                        memcpy(&triangleTexCoords[2 * (totalNumberTexCoords)], &triangleTexCoords[2 * (totalNumberTexCoords - edgeCount)], 2 * sizeof(GLUSfloat));
+                        memcpy(&triangleTexCoords[2 * (totalNumberTexCoords)], &triangleTexCoords[2 * (totalNumberTexCoords - emittedTexCoords)], 2 * sizeof(GLUSfloat));
                         memcpy(&triangleTexCoords[2 * (totalNumberTexCoords + 1)], &triangleTexCoords[2 * (totalNumberTexCoords - 1)], 2 * sizeof(GLUSfloat));
                         memcpy(&triangleTexCoords[2 * (totalNumberTexCoords + 2)], &texCoords[2 * vtIndex], 2 * sizeof(GLUSfloat));
 
                         totalNumberTexCoords += 3;
+                        emittedTexCoords += 3;
                     }
                 }
-
-                edgeCount++;
 
                 token = strtok(0, " \n");
             }
@@ -1429,7 +1549,7 @@ GLUSboolean _glusWavefrontParseLine(const GLUSchar* filename, GLUSline* line)
                 return GLUS_FALSE;
             }
 
-            sscanf(buffer, "%s %f %f %f", identifier, &x, &y, &z);
+            sscanf(buffer, "%31s %f %f %f", identifier, &x, &y, &z);
 
             vertices[4 * numberVertices + 0] = x;
             vertices[4 * numberVertices + 1] = y;
@@ -1449,34 +1569,17 @@ GLUSboolean _glusWavefrontParseLine(const GLUSchar* filename, GLUSline* line)
                 return GLUS_FALSE;
             }
 
-            sscanf(buffer, "%s %d %d", identifier, &start, &end);
+            start = 0;
+            end   = 0;
 
-            if (start > 0)
-            {
-                start--;
-            }
-            else if (start < 0)
-            {
-                start += numberVertices;
-            }
-            else
-            {
-                glusWavefrontFreeTempMemoryLine(&vertices, &indices);
+            sscanf(buffer, "%31s %d %d", identifier, &start, &end);
 
-                glusFileClose(f);
+            // Resolve one based and relative indices and reject everything out of bounds.
 
-                return GLUS_FALSE;
-            }
+            start = glusWavefrontResolveIndex(start, numberVertices);
+            end   = glusWavefrontResolveIndex(end, numberVertices);
 
-            if (end > 0)
-            {
-                end--;
-            }
-            else if (end < 0)
-            {
-                end += numberVertices;
-            }
-            else
+            if (start < 0 || end < 0)
             {
                 glusWavefrontFreeTempMemoryLine(&vertices, &indices);
 
@@ -1489,7 +1592,6 @@ GLUSboolean _glusWavefrontParseLine(const GLUSchar* filename, GLUSline* line)
             indices[numberIndices + 1] = (GLUSindex)end;
 
             numberIndices += 2;
-            ;
         }
     }
 
@@ -1624,7 +1726,7 @@ GLUSvoid GLUSAPIENTRY glusWavefrontDestroyScene(GLUSscene* scene)
 
         walker = walker->next;
 
-        free(toDelete);
+        glusMemoryFree(toDelete);
     }
 
     memset(scene, 0, sizeof(GLUSscene));

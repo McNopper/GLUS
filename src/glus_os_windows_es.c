@@ -451,7 +451,6 @@ LRESULT CALLBACK _glusOsProcessWindow(HWND hWnd, UINT uiMsg, WPARAM wParam, LPAR
 
         return 0;
     }
-        return 0;
     case WM_RBUTTONDOWN:
     {
         SetCapture(hWnd);
@@ -568,7 +567,18 @@ EGLNativeWindowType _glusOsCreateNativeWindowType(const char* title, const GLUSi
     wc.lpszMenuName  = NULL;
     wc.lpszClassName = "GLES3";
 
-    RegisterClass(&wc);
+    // A already registered class is not an error, as the window can be recreated.
+    if (!RegisterClass(&wc) && GetLastError() != ERROR_CLASS_ALREADY_EXISTS)
+    {
+        glusLogPrint(GLUS_LOG_ERROR, "Could not register the window class: %lu", GetLastError());
+
+        if (fullscreen)
+        {
+            ChangeDisplaySettings(NULL, CDS_FULLSCREEN);
+        }
+
+        return 0;
+    }
 
     //
 
@@ -594,6 +604,20 @@ EGLNativeWindowType _glusOsCreateNativeWindowType(const char* title, const GLUSi
 
     g_nativeWindow = CreateWindowEx(dwExStyle, "GLES3", title, dwStyle, wRect.left, wRect.top, fullWidth, fullHeight, NULL, NULL, hInstance, NULL);
 
+    if (!g_nativeWindow)
+    {
+        glusLogPrint(GLUS_LOG_ERROR, "Could not create the window: %lu", GetLastError());
+
+        UnregisterClass("GLES3", hInstance);
+
+        if (fullscreen)
+        {
+            ChangeDisplaySettings(NULL, CDS_FULLSCREEN);
+        }
+
+        return 0;
+    }
+
     ShowWindow(g_nativeWindow, SW_SHOW);
     SetForegroundWindow(g_nativeWindow);
     SetFocus(g_nativeWindow);
@@ -614,6 +638,9 @@ GLUSvoid _glusOsDestroyNativeWindowDisplay()
 
         g_nativeWindow = 0;
     }
+
+    // The window class is registered on creation, so it has to be released again.
+    UnregisterClass("GLES3", GetModuleHandle(NULL));
 
     if (g_fullscreen)
     {

@@ -31,6 +31,7 @@ GLUSboolean GLUSAPIENTRY glusFileLoadBinary(const GLUSchar* filename, GLUSbinary
 {
     FILE*  f;
     size_t elementsRead;
+    long   fileLength;
 
     if (!filename || !binaryfile)
     {
@@ -55,9 +56,10 @@ GLUSboolean GLUSAPIENTRY glusFileLoadBinary(const GLUSchar* filename, GLUSbinary
         return GLUS_FALSE;
     }
 
-    binaryfile->length = ftell(f);
+    // Note: ftell returns a long, which does not necessarily fit into the GLUSint length.
+    fileLength = ftell(f);
 
-    if (binaryfile->length < 0 || binaryfile->length == GLUS_MAX_BINARYILE_LENGTH)
+    if (fileLength < 0 || fileLength >= (long)GLUS_MAX_BINARYILE_LENGTH)
     {
         glusFileClose(f);
 
@@ -65,6 +67,8 @@ GLUSboolean GLUSAPIENTRY glusFileLoadBinary(const GLUSchar* filename, GLUSbinary
 
         return GLUS_FALSE;
     }
+
+    binaryfile->length = (GLUSint)fileLength;
 
     binaryfile->binary = (GLUSubyte*)glusMemoryMalloc((size_t)binaryfile->length);
 
@@ -105,6 +109,11 @@ GLUSboolean GLUSAPIENTRY glusFileSaveBinary(const GLUSchar* filename, const GLUS
         return GLUS_FALSE;
     }
 
+    if (!binaryfile->binary || binaryfile->length < 0)
+    {
+        return GLUS_FALSE;
+    }
+
     file = glusFileOpen(filename, "wb");
 
     if (!file)
@@ -112,9 +121,9 @@ GLUSboolean GLUSAPIENTRY glusFileSaveBinary(const GLUSchar* filename, const GLUS
         return GLUS_FALSE;
     }
 
-    elementsWritten = fwrite(binaryfile->binary, 1, binaryfile->length * sizeof(GLUSubyte), file);
+    elementsWritten = fwrite(binaryfile->binary, 1, (size_t)binaryfile->length * sizeof(GLUSubyte), file);
 
-    if (!_glusFileCheckWrite(file, elementsWritten, binaryfile->length * sizeof(GLUSubyte)))
+    if (!_glusFileCheckWrite(file, elementsWritten, (size_t)binaryfile->length * sizeof(GLUSubyte)))
     {
         return GLUS_FALSE;
     }

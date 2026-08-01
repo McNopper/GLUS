@@ -49,7 +49,10 @@ GLUSfloat GLUSAPIENTRY glusOrientedBoxDistancePoint4f(const GLUSfloat center[4],
     glusPoint4SubtractPoint4f(vector, point, center);
 
     glusMatrix3x3Identityf(matrix);
-    glusMatrix3x3RotateRzRyRxf(matrix, -orientation[2], -orientation[1], -orientation[0]);
+    // The inverse of the orientation is needed to get from world into box space. Negating the
+    // angles would compose them in the wrong order, so transpose the orthonormal rotation instead.
+    glusMatrix3x3RotateRzRyRxf(matrix, orientation[2], orientation[1], orientation[0]);
+    glusMatrix3x3Transposef(matrix);
     glusMatrix3x3MultiplyVector3f(vector, matrix, vector);
 
     vector[0] = fabsf(vector[0]) - halfExtend[0];

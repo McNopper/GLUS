@@ -31,6 +31,7 @@ GLUSboolean GLUSAPIENTRY glusFileLoadText(const GLUSchar* filename, GLUStextfile
 {
     FILE*  f;
     size_t elementsRead;
+    long   fileLength;
 
     if (!filename || !textfile)
     {
@@ -55,9 +56,10 @@ GLUSboolean GLUSAPIENTRY glusFileLoadText(const GLUSchar* filename, GLUStextfile
         return GLUS_FALSE;
     }
 
-    textfile->length = ftell(f);
+    // Note: ftell returns a long, which does not necessarily fit into the GLUSint length.
+    fileLength = ftell(f);
 
-    if (textfile->length < 0 || textfile->length == GLUS_MAX_TEXTFILE_LENGTH)
+    if (fileLength < 0 || fileLength >= (long)GLUS_MAX_TEXTFILE_LENGTH)
     {
         glusFileClose(f);
 
@@ -65,6 +67,8 @@ GLUSboolean GLUSAPIENTRY glusFileLoadText(const GLUSchar* filename, GLUStextfile
 
         return GLUS_FALSE;
     }
+
+    textfile->length = (GLUSint)fileLength;
 
     textfile->text = (GLUSchar*)glusMemoryMalloc((size_t)textfile->length + 1);
 
@@ -105,6 +109,11 @@ GLUSboolean GLUSAPIENTRY glusFileSaveText(const GLUSchar* filename, const GLUSte
         return GLUS_FALSE;
     }
 
+    if (!textfile->text || textfile->length < 0)
+    {
+        return GLUS_FALSE;
+    }
+
     file = glusFileOpen(filename, "w");
 
     if (!file)
@@ -112,9 +121,9 @@ GLUSboolean GLUSAPIENTRY glusFileSaveText(const GLUSchar* filename, const GLUSte
         return GLUS_FALSE;
     }
 
-    elementsWritten = fwrite(textfile->text, 1, textfile->length * sizeof(GLUSchar), file);
+    elementsWritten = fwrite(textfile->text, 1, (size_t)textfile->length * sizeof(GLUSchar), file);
 
-    if (!_glusFileCheckWrite(file, elementsWritten, textfile->length * sizeof(GLUSchar)))
+    if (!_glusFileCheckWrite(file, elementsWritten, (size_t)textfile->length * sizeof(GLUSchar)))
     {
         return GLUS_FALSE;
     }

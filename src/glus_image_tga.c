@@ -80,7 +80,7 @@ GLUSboolean GLUSAPIENTRY glusImageCreateTga(GLUStgaimage* tgaimage, GLUSint widt
         return GLUS_FALSE;
     }
 
-    tgaimage->data = (GLUSubyte*)glusMemoryMalloc(width * height * depth * stride * sizeof(GLUSubyte));
+    tgaimage->data = (GLUSubyte*)glusMemoryMalloc((size_t)width * (size_t)height * (size_t)depth * (size_t)stride * sizeof(GLUSubyte));
     if (!tgaimage->data)
     {
         return GLUS_FALSE;
@@ -99,6 +99,8 @@ GLUSboolean GLUSAPIENTRY glusImageLoadTga(const GLUSchar* filename, GLUStgaimage
 
     GLUSboolean hasColorMap = GLUS_FALSE;
 
+    GLUSubyte header[18];
+    GLUSubyte idLength;
     GLUSubyte imageType;
     GLUSubyte bitsPerPixel;
 
@@ -107,7 +109,7 @@ GLUSboolean GLUSAPIENTRY glusImageLoadTga(const GLUSchar* filename, GLUStgaimage
     GLUSubyte  colorMapEntrySize;
     GLUSubyte* colorMap = 0;
 
-    GLUSuint i, k;
+    GLUSuint i, k, colorMapIndex;
 
     size_t elementsRead;
 
@@ -131,21 +133,18 @@ GLUSboolean GLUSAPIENTRY glusImageLoadTga(const GLUSchar* filename, GLUStgaimage
         return GLUS_FALSE;
     }
 
-    // seek through the tga header, up to the type:
-    if (fseek(file, 2, SEEK_CUR))
-    {
-        glusFileClose(file);
+    // read the complete tga header
+    elementsRead = fread(header, 1, 18, file);
 
+    if (!_glusFileCheckRead(file, elementsRead, 18))
+    {
         return GLUS_FALSE;
     }
+
+    idLength = header[0];
 
     // read the image type
-    elementsRead = fread(&imageType, 1, 1, file);
-
-    if (!_glusFileCheckRead(file, elementsRead, 1))
-    {
-        return GLUS_FALSE;
-    }
+    imageType = header[2];
 
     // check the type
     if (imageType != 1 && imageType != 2 && imageType != 3 && imageType != 9 && imageType != 10 && imageType != 11)
@@ -160,83 +159,30 @@ GLUSboolean GLUSAPIENTRY glusImageLoadTga(const GLUSchar* filename, GLUStgaimage
         hasColorMap = GLUS_TRUE;
     }
 
-    if (!hasColorMap)
-    {
-        // seek through the tga header, up to the width/height:
-        if (fseek(file, 9, SEEK_CUR))
-        {
-            glusFileClose(file);
-
-            return GLUS_FALSE;
-        }
-    }
-    else
-    {
-        elementsRead = fread(&firstEntryIndex, 2, 1, file);
-
-        if (!_glusFileCheckRead(file, elementsRead, 1))
-        {
-            glusImageDestroyTga(tgaimage);
-
-            return GLUS_FALSE;
-        }
-
-        elementsRead = fread(&colorMapLength, 2, 1, file);
-
-        if (!_glusFileCheckRead(file, elementsRead, 1))
-        {
-            glusImageDestroyTga(tgaimage);
-
-            return GLUS_FALSE;
-        }
-
-        elementsRead = fread(&colorMapEntrySize, 1, 1, file);
-
-        if (!_glusFileCheckRead(file, elementsRead, 1))
-        {
-            glusImageDestroyTga(tgaimage);
-
-            return GLUS_FALSE;
-        }
-
-        // seek through the tga header, up to the width/height:
-        if (fseek(file, 4, SEEK_CUR))
-        {
-            glusFileClose(file);
-
-            return GLUS_FALSE;
-        }
-    }
+    // Note: All multi byte values are stored little endian, so they are decoded byte by byte.
+    firstEntryIndex   = (GLUSushort)((GLUSuint)header[3] + (GLUSuint)header[4] * 256);
+    colorMapLength    = (GLUSushort)((GLUSuint)header[5] + (GLUSuint)header[6] * 256);
+    colorMapEntrySize = header[7];
 
     // read the width
-    elementsRead = fread(&tgaimage->width, 2, 1, file);
+    tgaimage->width = (GLUSushort)((GLUSuint)header[12] + (GLUSuint)header[13] * 256);
 
-    if (!_glusFileCheckRead(file, elementsRead, 1))
+    if (tgaimage->width < 1 || tgaimage->width > GLUS_MAX_DIMENSION)
     {
-        glusImageDestroyTga(tgaimage);
+        glusFileClose(file);
 
-        return GLUS_FALSE;
-    }
-
-    if (tgaimage->width > GLUS_MAX_DIMENSION)
-    {
         glusImageDestroyTga(tgaimage);
 
         return GLUS_FALSE;
     }
 
     // read the height
-    elementsRead = fread(&tgaimage->height, 2, 1, file);
+    tgaimage->height = (GLUSushort)((GLUSuint)header[14] + (GLUSuint)header[15] * 256);
 
-    if (!_glusFileCheckRead(file, elementsRead, 1))
+    if (tgaimage->height < 1 || tgaimage->height > GLUS_MAX_DIMENSION)
     {
-        glusImageDestroyTga(tgaimage);
+        glusFileClose(file);
 
-        return GLUS_FALSE;
-    }
-
-    if (tgaimage->height > GLUS_MAX_DIMENSION)
-    {
         glusImageDestroyTga(tgaimage);
 
         return GLUS_FALSE;
@@ -245,14 +191,7 @@ GLUSboolean GLUSAPIENTRY glusImageLoadTga(const GLUSchar* filename, GLUStgaimage
     tgaimage->depth = 1;
 
     // read the bits per pixel
-    elementsRead = fread(&bitsPerPixel, 1, 1, file);
-
-    if (!_glusFileCheckRead(file, elementsRead, 1))
-    {
-        glusImageDestroyTga(tgaimage);
-
-        return GLUS_FALSE;
-    }
+    bitsPerPixel = header[16];
 
     // check the pixel depth
     if (bitsPerPixel != 8 && bitsPerPixel != 24 && bitsPerPixel != 32)
@@ -276,8 +215,30 @@ GLUSboolean GLUSAPIENTRY glusImageLoadTga(const GLUSchar* filename, GLUStgaimage
         }
     }
 
-    // move file pointer to beginning of targa data
-    if (fseek(file, 1, SEEK_CUR))
+    if (hasColorMap)
+    {
+        // A color mapped image stores exactly one look up index per pixel and needs a usable color map.
+        if (bitsPerPixel != 8 || colorMapLength == 0)
+        {
+            glusFileClose(file);
+
+            glusImageDestroyTga(tgaimage);
+
+            return GLUS_FALSE;
+        }
+
+        if (colorMapEntrySize != 8 && colorMapEntrySize != 16 && colorMapEntrySize != 24 && colorMapEntrySize != 32)
+        {
+            glusFileClose(file);
+
+            glusImageDestroyTga(tgaimage);
+
+            return GLUS_FALSE;
+        }
+    }
+
+    // skip the image ID field, which follows the header
+    if (idLength > 0 && fseek(file, (long)idLength, SEEK_CUR))
     {
         glusFileClose(file);
 
@@ -364,9 +325,10 @@ GLUSboolean GLUSAPIENTRY glusImageLoadTga(const GLUSchar* filename, GLUStgaimage
     else
     {
         // RLE encoded
-        GLUSint pixelsRead = 0;
+        GLUSint pixelsRead  = 0;
+        GLUSint totalPixels = (GLUSint)tgaimage->width * (GLUSint)tgaimage->height;
 
-        while (pixelsRead < tgaimage->width * tgaimage->height)
+        while (pixelsRead < totalPixels)
         {
             GLUSubyte amount;
 
@@ -374,6 +336,22 @@ GLUSboolean GLUSAPIENTRY glusImageLoadTga(const GLUSchar* filename, GLUStgaimage
 
             if (!_glusFileCheckRead(file, elementsRead, 1))
             {
+                glusImageDestroyTga(tgaimage);
+
+                if (hasColorMap)
+                {
+                    glusMemoryFree(colorMap);
+                    colorMap = 0;
+                }
+
+                return GLUS_FALSE;
+            }
+
+            // The packet size is stored biased by one and must not exceed the remaining pixels.
+            if ((GLUSint)(amount & 0x7F) + 1 > totalPixels - pixelsRead)
+            {
+                glusFileClose(file);
+
                 glusImageDestroyTga(tgaimage);
 
                 if (hasColorMap)
@@ -493,9 +471,25 @@ GLUSboolean GLUSAPIENTRY glusImageLoadTga(const GLUSchar* filename, GLUStgaimage
 
         for (i = 0; i < (GLUSuint)tgaimage->width * (GLUSuint)tgaimage->height; i++)
         {
+            colorMapIndex = (GLUSuint)firstEntryIndex + (GLUSuint)data[i];
+
+            // The look up index has to be inside the color map.
+            if (colorMapIndex >= (GLUSuint)colorMapLength)
+            {
+                glusImageDestroyTga(tgaimage);
+
+                glusMemoryFree(data);
+                data = 0;
+
+                glusMemoryFree(colorMap);
+                colorMap = 0;
+
+                return GLUS_FALSE;
+            }
+
             for (k = 0; k < (GLUSuint)bytesPerPixel; k++)
             {
-                tgaimage->data[i * bytesPerPixel + k] = colorMap[(firstEntryIndex + data[i]) * bytesPerPixel + k];
+                tgaimage->data[i * bytesPerPixel + k] = colorMap[colorMapIndex * bytesPerPixel + k];
             }
         }
 
@@ -517,6 +511,7 @@ GLUSboolean GLUSAPIENTRY glusImageSaveTga(const GLUSchar* filename, const GLUStg
     GLUSubyte  buffer[12];
     GLUSubyte  bitsPerPixel;
     size_t     elementsWritten;
+    size_t     dataSize;
     GLUSubyte* data;
 
     // check, if we have a valid pointer
@@ -581,16 +576,23 @@ GLUSboolean GLUSAPIENTRY glusImageSaveTga(const GLUSchar* filename, const GLUStg
         return GLUS_FALSE;
     }
 
-    elementsWritten = fwrite(&tgaimage->width, sizeof(tgaimage->width), 1, file);
+    // Note: All multi byte values are stored little endian, so they are encoded byte by byte.
+    buffer[0] = (GLUSubyte)(tgaimage->width & 0xFF);
+    buffer[1] = (GLUSubyte)((tgaimage->width >> 8) & 0xFF);
 
-    if (!_glusFileCheckWrite(file, elementsWritten, 1))
+    elementsWritten = fwrite(buffer, 1, 2, file);
+
+    if (!_glusFileCheckWrite(file, elementsWritten, 2))
     {
         return GLUS_FALSE;
     }
 
-    elementsWritten = fwrite(&tgaimage->height, sizeof(tgaimage->height), 1, file);
+    buffer[0] = (GLUSubyte)(tgaimage->height & 0xFF);
+    buffer[1] = (GLUSubyte)((tgaimage->height >> 8) & 0xFF);
 
-    if (!_glusFileCheckWrite(file, elementsWritten, 1))
+    elementsWritten = fwrite(buffer, 1, 2, file);
+
+    if (!_glusFileCheckWrite(file, elementsWritten, 2))
     {
         return GLUS_FALSE;
     }
@@ -611,7 +613,16 @@ GLUSboolean GLUSAPIENTRY glusImageSaveTga(const GLUSchar* filename, const GLUStg
         return GLUS_FALSE;
     }
 
-    data = glusMemoryMalloc(tgaimage->width * tgaimage->height * bitsPerPixel / 8);
+    dataSize = (size_t)tgaimage->width * (size_t)tgaimage->height * (size_t)bitsPerPixel / 8;
+
+    if (!tgaimage->data || dataSize == 0)
+    {
+        glusFileClose(file);
+
+        return GLUS_FALSE;
+    }
+
+    data = glusMemoryMalloc(dataSize);
 
     if (!data)
     {
@@ -620,18 +631,18 @@ GLUSboolean GLUSAPIENTRY glusImageSaveTga(const GLUSchar* filename, const GLUStg
         return GLUS_FALSE;
     }
 
-    memcpy(data, tgaimage->data, tgaimage->width * tgaimage->height * bitsPerPixel / 8);
+    memcpy(data, tgaimage->data, dataSize);
 
     if (bitsPerPixel >= 24)
     {
         glusImageSwapColorChannel(tgaimage->width, tgaimage->height, tgaimage->format, data);
     }
 
-    elementsWritten = fwrite(data, 1, tgaimage->width * tgaimage->height * bitsPerPixel / 8, file);
+    elementsWritten = fwrite(data, 1, dataSize, file);
 
     glusMemoryFree(data);
 
-    if (!_glusFileCheckWrite(file, elementsWritten, tgaimage->width * tgaimage->height * bitsPerPixel / 8))
+    if (!_glusFileCheckWrite(file, elementsWritten, dataSize))
     {
         return GLUS_FALSE;
     }
@@ -762,7 +773,7 @@ GLUSboolean GLUSAPIENTRY glusImageConvertTga(GLUStgaimage* targetImage, const GL
         targetNumberChannels = 4;
     }
 
-    targetImage->data = (GLUSubyte*)glusMemoryMalloc(targetNumberChannels * sourceImage->width * sourceImage->height * sourceImage->depth * sizeof(GLUSubyte));
+    targetImage->data = (GLUSubyte*)glusMemoryMalloc((size_t)targetNumberChannels * (size_t)sourceImage->width * (size_t)sourceImage->height * (size_t)sourceImage->depth * sizeof(GLUSubyte));
 
     if (!targetImage->data)
     {
@@ -930,7 +941,7 @@ GLUSboolean GLUSAPIENTRY glusImageToPremultiplyTga(GLUStgaimage* targetImage, co
         return GLUS_FALSE;
     }
 
-    targetImage->data = (GLUSubyte*)glusMemoryMalloc(4 * sourceImage->width * sourceImage->height * sourceImage->depth * sizeof(GLUSubyte));
+    targetImage->data = (GLUSubyte*)glusMemoryMalloc((size_t)4 * (size_t)sourceImage->width * (size_t)sourceImage->height * (size_t)sourceImage->depth * sizeof(GLUSubyte));
 
     if (!targetImage->data)
     {

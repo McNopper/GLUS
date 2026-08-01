@@ -235,16 +235,20 @@ GLUSboolean GLUSAPIENTRY glusVector2GramSchmidtOrthof(GLUSfloat result[2], const
 
 GLUSvoid GLUSAPIENTRY glusVector3Reflectf(GLUSfloat result[3], const GLUSfloat incident[3], const GLUSfloat normal[3])
 {
-    glusVector3MultiplyScalarf(result, normal, 2.0f * glusVector3Dotf(normal, incident));
+    GLUSfloat temp[3];
 
-    glusVector3SubtractVector3f(result, incident, result);
+    glusVector3MultiplyScalarf(temp, normal, 2.0f * glusVector3Dotf(normal, incident));
+
+    glusVector3SubtractVector3f(result, incident, temp);
 }
 
 GLUSvoid GLUSAPIENTRY glusVector2Reflectf(GLUSfloat result[2], const GLUSfloat incident[2], const GLUSfloat normal[2])
 {
-    glusVector2MultiplyScalarf(result, normal, 2.0f * glusVector2Dotf(normal, incident));
+    GLUSfloat temp[2];
 
-    glusVector2SubtractVector2f(result, incident, result);
+    glusVector2MultiplyScalarf(temp, normal, 2.0f * glusVector2Dotf(normal, incident));
+
+    glusVector2SubtractVector2f(result, incident, temp);
 }
 
 GLUSvoid GLUSAPIENTRY glusVector3Refractf(GLUSfloat result[3], const GLUSfloat incident[3], const GLUSfloat normal[3], const float eta)

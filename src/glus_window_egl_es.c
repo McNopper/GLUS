@@ -147,6 +147,10 @@ GLUSvoid _glusWindowInternalReshape(GLUSint width, GLUSint height)
         height = 1;
     }
 
+    // Keep the cached size in sync, as glusWindowGetWidth/GetHeight rely on it.
+    g_width  = width;
+    g_height = height;
+
     if (glusReshape && g_initdone)
     {
         glusReshape(width, height);
@@ -156,6 +160,18 @@ GLUSvoid _glusWindowInternalReshape(GLUSint width, GLUSint height)
 GLUSvoid _glusWindowInternalClose(GLUSvoid)
 {
     g_done = GLUS_TRUE;
+}
+
+static GLUSint _glusWindowInternalToLower(const GLUSint key)
+{
+    // tolower is only defined for EOF and values representable as an unsigned char. The key
+    // codes go far beyond that range, so they are passed through unchanged.
+    if (key >= 0 && key <= 255)
+    {
+        return tolower((GLUSubyte)key);
+    }
+
+    return key;
 }
 
 GLUSvoid _glusWindowInternalKey(GLUSint key, GLUSint state)
@@ -171,14 +187,14 @@ GLUSvoid _glusWindowInternalKey(GLUSint key, GLUSint state)
 
         if (glusKey)
         {
-            glusKey(GLUS_FALSE, tolower(key));
+            glusKey(GLUS_FALSE, _glusWindowInternalToLower(key));
         }
     }
     else
     {
         if (glusKey)
         {
-            glusKey(GLUS_TRUE, tolower(key));
+            glusKey(GLUS_TRUE, _glusWindowInternalToLower(key));
         }
     }
 }
@@ -206,7 +222,8 @@ GLUSvoid _glusWindowInternalMouse(GLUSint button, GLUSint action)
     }
     else
     {
-        g_buttons ^= usedButton;
+        // Clear the bit. An exclusive or would set it, if a matching press was never seen.
+        g_buttons &= ~usedButton;
     }
 
     if (glusMouse)
@@ -379,9 +396,9 @@ GLUSboolean GLUSAPIENTRY glusWindowLoopDoRecording(GLUSvoid)
                     if (glusScreenshotUseTga(0, 0, _glusWindowGetRecordingImageTga()))
                     {
                         static const GLUSchar* filenameTemplate = "screenshot-%04d.tga";
-                        static GLUSchar        filename[20];
+                        static GLUSchar        filename[64];
 
-                        sprintf(filename, filenameTemplate, _glusWindowGetCurrentAndIncreaseRecordingFrame());
+                        snprintf(filename, sizeof(filename), filenameTemplate, _glusWindowGetCurrentAndIncreaseRecordingFrame());
 
                         glusImageSaveTga(filename, _glusWindowGetRecordingImageTga());
                     }

@@ -42,9 +42,10 @@ extern GLUSvoid _glusWindowInternalMouseWheel(GLUSint pos);
 
 extern GLUSvoid _glusWindowInternalMouseMove(GLUSint x, GLUSint y);
 
-static Display* g_nativeDisplay = 0;
-static Window   g_nativeWindow  = 0;
-static Atom     g_deleteMessage;
+static Display*  g_nativeDisplay  = 0;
+static Window    g_nativeWindow   = 0;
+static Colormap  g_nativeColormap = 0;
+static Atom      g_deleteMessage;
 
 static Rotation g_oldRotation;
 static SizeID   g_oldSizeID;
@@ -411,9 +412,37 @@ EGLNativeDisplayType _glusOsGetNativeDisplayType()
     if (!g_nativeDisplay)
     {
         g_nativeDisplay = XOpenDisplay(0);
+
+        if (!g_nativeDisplay)
+        {
+            glusLogPrint(GLUS_LOG_ERROR, "Could not open the X display");
+
+            return 0;
+        }
     }
 
     return (EGLNativeDisplayType)g_nativeDisplay;
+}
+
+static GLUSvoid _glusOsRestoreScreenConfiguration()
+{
+    long                    defaultScreen;
+    XRRScreenConfiguration* screenConfiguration;
+
+    if (!g_nativeDisplay)
+    {
+        return;
+    }
+
+    defaultScreen       = DefaultScreen(g_nativeDisplay);
+    screenConfiguration = XRRGetScreenInfo(g_nativeDisplay, RootWindow(g_nativeDisplay, defaultScreen));
+
+    if (screenConfiguration)
+    {
+        XRRSetScreenConfig(g_nativeDisplay, screenConfiguration, RootWindow(g_nativeDisplay, defaultScreen), g_oldSizeID, g_oldRotation, CurrentTime);
+
+        XRRFreeScreenConfigInfo(screenConfiguration);
+    }
 }
 
 EGLNativeWindowType _glusOsCreateNativeWindowType(const char* title, const GLUSint width, const GLUSint height, const GLUSboolean fullscreen, const GLUSboolean noResize, const GLUSint nativeVisualID)
@@ -424,6 +453,13 @@ EGLNativeWindowType _glusOsCreateNativeWindowType(const char* title, const GLUSi
     XVisualInfo*         visualInfo;
     Colormap             colormap;
     XSetWindowAttributes windowAttributes;
+
+    if (!g_nativeDisplay)
+    {
+        glusLogPrint(GLUS_LOG_ERROR, "No native display available");
+
+        return 0;
+    }
 
     defaultScreen = DefaultScreen(g_nativeDisplay);
 
@@ -478,6 +514,12 @@ EGLNativeWindowType _glusOsCreateNativeWindowType(const char* title, const GLUSi
     {
         glusLogPrint(GLUS_LOG_ERROR, "Could not get visual info");
 
+        // The screen resolution has already been changed, so revert it.
+        if (fullscreen)
+        {
+            _glusOsRestoreScreenConfiguration();
+        }
+
         return 0;
     }
 
@@ -490,6 +532,11 @@ EGLNativeWindowType _glusOsCreateNativeWindowType(const char* title, const GLUSi
 
     g_nativeWindow = XCreateWindow(g_nativeDisplay, RootWindow(g_nativeDisplay, defaultScreen), 0, 0, width, height, 0, visualInfo->depth, InputOutput, visualInfo->visual, CWBackPixel | CWBorderPixel | CWEventMask | CWColormap, &windowAttributes);
 
+    // XGetVisualInfo returns an allocated array, which has to be freed.
+    XFree(visualInfo);
+
+    g_nativeColormap = colormap;
+
     XSetStandardProperties(g_nativeDisplay, g_nativeWindow, title, "", 0, 0, 0, 0);
     XMapWindow(g_nativeDisplay, g_nativeWindow);
     XSetWMColormapWindows(g_nativeDisplay, g_nativeWindow, &g_nativeWindow, 1);
@@ -501,11 +548,19 @@ EGLNativeWindowType _glusOsCreateNativeWindowType(const char* title, const GLUSi
     if (noResize)
     {
         XSizeHints* sizeHints = XAllocSizeHints();
-        sizeHints->flags |= (PMinSize | PMaxSize);
-        sizeHints->min_width = sizeHints->max_width = width;
-        sizeHints->min_height = sizeHints->max_height = height;
-        XSetWMNormalHints(g_nativeDisplay, g_nativeWindow, sizeHints);
-        XFree(sizeHints);
+
+        if (sizeHints)
+        {
+            sizeHints->flags |= (PMinSize | PMaxSize);
+            sizeHints->min_width = sizeHints->max_width = width;
+            sizeHints->min_height = sizeHints->max_height = height;
+            XSetWMNormalHints(g_nativeDisplay, g_nativeWindow, sizeHints);
+            XFree(sizeHints);
+        }
+        else
+        {
+            glusLogPrint(GLUS_LOG_WARNING, "Could not allocate size hints. Window stays resizable.");
+        }
     }
 
     if (fullscreen)
@@ -539,18 +594,7 @@ GLUSvoid _glusOsDestroyNativeWindowDisplay()
 {
     if (g_nativeDisplay && g_fullscreen)
     {
-        long                    defaultScreen;
-        XRRScreenConfiguration* screenConfiguration;
-
-        defaultScreen       = DefaultScreen(g_nativeDisplay);
-        screenConfiguration = XRRGetScreenInfo(g_nativeDisplay, RootWindow(g_nativeDisplay, defaultScreen));
-
-        if (screenConfiguration)
-        {
-            XRRSetScreenConfig(g_nativeDisplay, screenConfiguration, RootWindow(g_nativeDisplay, defaultScreen), g_oldSizeID, g_oldRotation, CurrentTime);
-
-            XRRFreeScreenConfigInfo(screenConfiguration);
-        }
+        _glusOsRestoreScreenConfiguration();
 
         g_fullscreen = GLUS_FALSE;
     }
@@ -560,6 +604,13 @@ GLUSvoid _glusOsDestroyNativeWindowDisplay()
         XDestroyWindow(g_nativeDisplay, g_nativeWindow);
 
         g_nativeWindow = 0;
+    }
+
+    if (g_nativeDisplay && g_nativeColormap)
+    {
+        XFreeColormap(g_nativeDisplay, g_nativeColormap);
+
+        g_nativeColormap = 0;
     }
 
     if (g_nativeDisplay)

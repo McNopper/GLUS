@@ -40,6 +40,42 @@ GLUSboolean GLUSAPIENTRY glusExtensionIsSupported(const GLUSchar* extension)
         return GLUS_FALSE;
     }
 
+#ifdef GLEW_VERSION
+    {
+        GLUSint i;
+
+        GLUSint majorVersion     = 0;
+        GLUSint numberExtensions = 0;
+
+        // Flush pending errors, so that an unsupported query can be detected reliably.
+        for (i = 0; i < 16 && glGetError() != GLUS_NO_ERROR; i++)
+        {
+            // Nothing to do here.
+        }
+
+        glGetIntegerv(GLUS_MAJOR_VERSION, &majorVersion);
+
+        // glGetString(GL_EXTENSIONS) is removed in the OpenGL 3.2+ core profile, so the
+        // indexed query has to be used. It is available since OpenGL 3.0.
+        if (glGetError() == GLUS_NO_ERROR && majorVersion >= 3)
+        {
+            glGetIntegerv(GLUS_NUM_EXTENSIONS, &numberExtensions);
+
+            for (i = 0; i < numberExtensions; i++)
+            {
+                const GLUSubyte* currentExtension = glGetStringi(GLUS_EXTENSIONS, (GLUSuint)i);
+
+                if (currentExtension && strcmp((const GLUSchar*)currentExtension, extension) == 0)
+                {
+                    return GLUS_TRUE;
+                }
+            }
+
+            return GLUS_FALSE;
+        }
+    }
+#endif
+
     allExtensions = glGetString(GLUS_EXTENSIONS);
 
     startExtension = allExtensions;
@@ -53,11 +89,6 @@ GLUSboolean GLUSAPIENTRY glusExtensionIsSupported(const GLUSchar* extension)
         }
 
         terminatorExtension = walkerExtension + strlen(extension);
-
-        if (!terminatorExtension)
-        {
-            return GLUS_FALSE;
-        }
 
         if (walkerExtension == startExtension || *(walkerExtension - 1) == ' ')
         {

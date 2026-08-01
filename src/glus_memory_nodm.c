@@ -28,8 +28,24 @@
 // Data size of the data type.
 #define GLUS_MEMORY_DATA_SIZE sizeof(GLUS_MEMORY_DATA_TYPE)
 
+/**
+ * Type with the strictest alignment requirement. The returned pointers are used
+ * for structures containing pointers and floating point values, so they have to
+ * be aligned for any data type and not only for the memory data type.
+ */
+typedef union _GLUSmemoryAlign
+{
+    GLUS_MEMORY_DATA_TYPE data;
+    void*                 pointer;
+    void (*function)(void);
+    long long   longLong;
+    double      doubleValue;
+    long double longDoubleValue;
+
+} GLUSmemoryAlign;
+
 // Alignment in memory.
-#define GLUS_MEMORY_DATA_ALIGNMENT_SIZE (GLUS_MEMORY_DATA_SIZE * 2)
+#define GLUS_MEMORY_DATA_ALIGNMENT_SIZE sizeof(GLUSmemoryAlign)
 
 // Factor to get the right alignment.
 #define GLUS_MEMORY_DATAT_ALIGNMENT_FACTOR (GLUS_MEMORY_DATA_ALIGNMENT_SIZE / GLUS_MEMORY_DATA_SIZE)
@@ -69,9 +85,17 @@ typedef struct _GLUSmemoryTable
 } GLUSmemoryTable;
 
 /**
- * Available memory with given data type.
+ * Available memory with given data type. The union raises the alignment of the
+ * whole array, so every aligned block start is usable for any data type.
  */
-static GLUS_MEMORY_DATA_TYPE g_memory[GLUS_MEMORY_SIZE];
+static union _GLUSmemoryStorage
+{
+    GLUSmemoryAlign       alignment;
+    GLUS_MEMORY_DATA_TYPE data[GLUS_MEMORY_SIZE];
+
+} g_memoryStorage;
+
+#define g_memory (g_memoryStorage.data)
 
 /**
  * Memory table used to manage the memory array.
@@ -172,21 +196,32 @@ static void* glusMemoryInternalMalloc(size_t size)
 {
     GLUSuint tableIndex = 0;
 
+    size_t lengthIndices;
+    size_t alignmentIndicesRest;
+
     // Calculate needed indecies.
-    size_t lengthIndices = size % GLUS_MEMORY_DATA_SIZE == 0 ? (size / GLUS_MEMORY_DATA_SIZE) : (size / GLUS_MEMORY_DATA_SIZE + 1);
-
-    size_t alignmentIndicesRest = lengthIndices % GLUS_MEMORY_DATAT_ALIGNMENT_FACTOR;
-
-    // Needed for overflow of lengthIndices.
-    if (lengthIndices * GLUS_MEMORY_DATA_SIZE < size)
-    {
-        return 0;
-    }
+    lengthIndices = size / GLUS_MEMORY_DATA_SIZE + (size % GLUS_MEMORY_DATA_SIZE == 0 ? 0 : 1);
 
     // Test an adjust alignment.
+    alignmentIndicesRest = lengthIndices % GLUS_MEMORY_DATAT_ALIGNMENT_FACTOR;
+
     if (alignmentIndicesRest != 0)
     {
-        lengthIndices += GLUS_MEMORY_DATAT_ALIGNMENT_FACTOR - alignmentIndicesRest;
+        size_t padding = GLUS_MEMORY_DATAT_ALIGNMENT_FACTOR - alignmentIndicesRest;
+
+        // Needed for overflow of lengthIndices.
+        if (lengthIndices > (size_t)-1 - padding)
+        {
+            return 0;
+        }
+
+        lengthIndices += padding;
+    }
+
+    // More than the whole memory can never be allocated.
+    if (lengthIndices > (size_t)GLUS_MEMORY_SIZE)
+    {
+        return 0;
     }
 
     while (tableIndex < g_memoryTableEntries)

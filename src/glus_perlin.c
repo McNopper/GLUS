@@ -38,6 +38,12 @@ static GLUSfloat glusPerlinGetNoiseValue1D(GLUStgaimage* image, GLUSint x, const
         return 0.0f;
     }
 
+    // The amplitude decays per octave, so it can reach zero. Avoid the division by zero.
+    if (amplitude == 0)
+    {
+        return 0.0f;
+    }
+
     x = x % (GLUSint)image->width;
 
     if (x < 0)
@@ -51,6 +57,12 @@ static GLUSfloat glusPerlinGetNoiseValue1D(GLUStgaimage* image, GLUSint x, const
 static GLUSfloat glusPerlinGetNoiseValue2D(GLUStgaimage* image, GLUSint x, GLUSint y, const GLUSint amplitude, const GLUSint* data2D)
 {
     if (!image || !data2D)
+    {
+        return 0.0f;
+    }
+
+    // The amplitude decays per octave, so it can reach zero. Avoid the division by zero.
+    if (amplitude == 0)
     {
         return 0.0f;
     }
@@ -73,6 +85,12 @@ static GLUSfloat glusPerlinGetNoiseValue2D(GLUStgaimage* image, GLUSint x, GLUSi
 static GLUSfloat glusPerlinGetNoiseValue3D(GLUStgaimage* image, GLUSint x, GLUSint y, GLUSint z, const GLUSint amplitude, const GLUSint* data3D)
 {
     if (!image || !data3D)
+    {
+        return 0.0f;
+    }
+
+    // The amplitude decays per octave, so it can reach zero. Avoid the division by zero.
+    if (amplitude == 0)
     {
         return 0.0f;
     }
@@ -176,6 +194,13 @@ GLUSboolean GLUSAPIENTRY glusPerlinCreateNoise1D(GLUStgaimage* image, const GLUS
 
         GLUSfloat currentFrequency = frequency * frequencyFactor;
         GLUSfloat currentAmplitude = amplitude / (1.0f * amplitudeFactor);
+
+        // The amplitude decays by the persistence per octave. As soon as the truncated
+        // amplitude is zero, no further octave can contribute anything.
+        if ((GLUSint)currentAmplitude < 1)
+        {
+            break;
+        }
 
         if (currentFrequency <= 1.0f)
         {
@@ -308,6 +333,13 @@ GLUSboolean GLUSAPIENTRY glusPerlinCreateNoise2D(GLUStgaimage* image, const GLUS
         GLUSfloat currentFrequency = frequency * frequencyFactor;
         GLUSfloat currentAmplitude = amplitude / (1.0f * amplitudeFactor);
 
+        // The amplitude decays by the persistence per octave. As soon as the truncated
+        // amplitude is zero, no further octave can contribute anything.
+        if ((GLUSint)currentAmplitude < 1)
+        {
+            break;
+        }
+
         if (currentFrequency <= 1.0f)
         {
             currentFrequency = 1.0f;
@@ -399,7 +431,7 @@ GLUSboolean GLUSAPIENTRY glusPerlinCreateNoise3D(GLUStgaimage* image, const GLUS
     image->height = (GLUSushort)height;
     image->depth  = (GLUSushort)depth;
     image->format = GLUS_SINGLE_CHANNEL;
-    image->data   = glusMemoryMalloc(width * height * depth * sizeof(GLUSubyte));
+    image->data   = glusMemoryMalloc((size_t)width * (size_t)height * (size_t)depth * sizeof(GLUSubyte));
 
     if (!image->data)
     {
@@ -408,7 +440,7 @@ GLUSboolean GLUSAPIENTRY glusPerlinCreateNoise3D(GLUStgaimage* image, const GLUS
         return GLUS_FALSE;
     }
 
-    data = glusMemoryMalloc(width * height * depth * sizeof(GLUSfloat));
+    data = glusMemoryMalloc((size_t)width * (size_t)height * (size_t)depth * sizeof(GLUSfloat));
 
     if (!data)
     {
@@ -424,7 +456,7 @@ GLUSboolean GLUSAPIENTRY glusPerlinCreateNoise3D(GLUStgaimage* image, const GLUS
 
     //
 
-    data3D = glusMemoryMalloc(width * height * depth * sizeof(GLUSint));
+    data3D = glusMemoryMalloc((size_t)width * (size_t)height * (size_t)depth * sizeof(GLUSint));
 
     if (!data3D)
     {
@@ -456,6 +488,13 @@ GLUSboolean GLUSAPIENTRY glusPerlinCreateNoise3D(GLUStgaimage* image, const GLUS
 
         GLUSfloat currentFrequency = frequency * frequencyFactor;
         GLUSfloat currentAmplitude = amplitude / (1.0f * amplitudeFactor);
+
+        // The amplitude decays by the persistence per octave. As soon as the truncated
+        // amplitude is zero, no further octave can contribute anything.
+        if ((GLUSint)currentAmplitude < 1)
+        {
+            break;
+        }
 
         if (currentFrequency <= 1.0f)
         {

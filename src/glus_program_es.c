@@ -22,13 +22,92 @@
 
 #include "GL/glus.h"
 
+/**
+ * Prints the info log of a shader. Drivers are allowed to report a log length of zero, so
+ * this case has to be handled and the buffer always has to be terminated.
+ */
+static GLUSvoid glusProgramPrintShaderLog(const GLUSuint shader, const GLUSchar* message)
+{
+    GLUSint logLength = 0;
+    GLUSint charsWritten;
+
+    GLUSchar* log;
+
+    glusLogPrint(GLUS_LOG_ERROR, "%s", message);
+
+    glGetShaderiv(shader, GLUS_INFO_LOG_LENGTH, &logLength);
+
+    if (logLength <= 0)
+    {
+        glusLogPrint(GLUS_LOG_ERROR, "No info log available.");
+
+        return;
+    }
+
+    log = (GLUSchar*)glusMemoryMalloc((size_t)logLength + 1);
+
+    if (!log)
+    {
+        glusLogPrint(GLUS_LOG_ERROR, "Info log could not be allocated.");
+
+        return;
+    }
+
+    log[0] = '\0';
+
+    glGetShaderInfoLog(shader, logLength, &charsWritten, log);
+
+    log[logLength] = '\0';
+
+    glusLogPrint(GLUS_LOG_ERROR, "%s", log);
+
+    glusMemoryFree(log);
+}
+
+/**
+ * Prints the info log of a program. See glusProgramPrintShaderLog for the details.
+ */
+static GLUSvoid glusProgramPrintProgramLog(const GLUSuint program, const GLUSchar* message)
+{
+    GLUSint logLength = 0;
+    GLUSint charsWritten;
+
+    GLUSchar* log;
+
+    glusLogPrint(GLUS_LOG_ERROR, "%s", message);
+
+    glGetProgramiv(program, GLUS_INFO_LOG_LENGTH, &logLength);
+
+    if (logLength <= 0)
+    {
+        glusLogPrint(GLUS_LOG_ERROR, "No info log available.");
+
+        return;
+    }
+
+    log = (GLUSchar*)glusMemoryMalloc((size_t)logLength + 1);
+
+    if (!log)
+    {
+        glusLogPrint(GLUS_LOG_ERROR, "Info log could not be allocated.");
+
+        return;
+    }
+
+    log[0] = '\0';
+
+    glGetProgramInfoLog(program, logLength, &charsWritten, log);
+
+    log[logLength] = '\0';
+
+    glusLogPrint(GLUS_LOG_ERROR, "%s", log);
+
+    glusMemoryFree(log);
+}
+
 GLUSboolean GLUSAPIENTRY glusProgramCreateFromSource(GLUSprogram* shaderProgram, const GLUSchar** vertexSource, const GLUSchar** fragmentSource)
 {
     GLUSint compiled;
-
-    GLUSint logLength, charsWritten;
-
-    char* log;
 
     if (!shaderProgram || !vertexSource || !fragmentSource)
     {
@@ -49,23 +128,9 @@ GLUSboolean GLUSAPIENTRY glusProgramCreateFromSource(GLUSprogram* shaderProgram,
 
     if (!compiled)
     {
-        glGetShaderiv(shaderProgram->vertex, GLUS_INFO_LOG_LENGTH, &logLength);
+        glusProgramPrintShaderLog(shaderProgram->vertex, "Vertex shader compile error:");
 
-        log = (char*)glusMemoryMalloc((size_t)logLength);
-
-        if (!log)
-        {
-            return GLUS_FALSE;
-        }
-
-        glGetShaderInfoLog(shaderProgram->vertex, logLength, &charsWritten, log);
-
-        glusLogPrint(GLUS_LOG_ERROR, "Vertex shader compile error:");
-        glusLogPrint(GLUS_LOG_ERROR, "%s", log);
-
-        glusMemoryFree(log);
-
-        shaderProgram->vertex = 0;
+        glusProgramDestroy(shaderProgram);
 
         return GLUS_FALSE;
     }
@@ -80,25 +145,7 @@ GLUSboolean GLUSAPIENTRY glusProgramCreateFromSource(GLUSprogram* shaderProgram,
 
     if (!compiled)
     {
-        glGetShaderiv(shaderProgram->fragment, GLUS_INFO_LOG_LENGTH, &logLength);
-
-        log = (char*)glusMemoryMalloc((size_t)logLength);
-
-        if (!log)
-        {
-            glusProgramDestroy(shaderProgram);
-
-            return GLUS_FALSE;
-        }
-
-        glGetShaderInfoLog(shaderProgram->fragment, logLength, &charsWritten, log);
-
-        glusLogPrint(GLUS_LOG_ERROR, "Fragment shader compile error:");
-        glusLogPrint(GLUS_LOG_ERROR, "%s", log);
-
-        glusMemoryFree(log);
-
-        shaderProgram->fragment = 0;
+        glusProgramPrintShaderLog(shaderProgram->fragment, "Fragment shader compile error:");
 
         glusProgramDestroy(shaderProgram);
 
@@ -118,10 +165,6 @@ GLUSboolean GLUSAPIENTRY glusProgramLink(GLUSprogram* shaderProgram)
 {
     GLUSint linked;
 
-    GLUSint logLength, charsWritten;
-
-    char* log;
-
     if (!shaderProgram)
     {
         return GLUS_FALSE;
@@ -133,25 +176,7 @@ GLUSboolean GLUSAPIENTRY glusProgramLink(GLUSprogram* shaderProgram)
 
     if (!linked)
     {
-        glGetProgramiv(shaderProgram->program, GLUS_INFO_LOG_LENGTH, &logLength);
-
-        log = (char*)glusMemoryMalloc((size_t)logLength);
-
-        if (!log)
-        {
-            glusProgramDestroy(shaderProgram);
-
-            return GLUS_FALSE;
-        }
-
-        glGetProgramInfoLog(shaderProgram->program, logLength, &charsWritten, log);
-
-        glusLogPrint(GLUS_LOG_ERROR, "Shader program link error:");
-        glusLogPrint(GLUS_LOG_ERROR, "%s", log);
-
-        glusMemoryFree(log);
-
-        shaderProgram->program = 0;
+        glusProgramPrintProgramLog(shaderProgram->program, "Shader program link error:");
 
         glusProgramDestroy(shaderProgram);
 

@@ -436,8 +436,8 @@ GLUSboolean GLUSAPIENTRY glusShapeCreateDiscf(GLUSshape* shape, const GLUSfloat 
         shape->tangents[vertexCounter * 3 + 1] = 0.0f;
         shape->tangents[vertexCounter * 3 + 2] = 0.0f;
 
-        shape->texCoords[vertexCounter * 2 + 0] = 0.5f * cosf(currentAngle) * 0.5f;
-        shape->texCoords[vertexCounter * 2 + 1] = 0.5f * sinf(currentAngle) * 0.5f;
+        shape->texCoords[vertexCounter * 2 + 0] = 0.5f + cosf(currentAngle) * 0.5f;
+        shape->texCoords[vertexCounter * 2 + 1] = 0.5f + sinf(currentAngle) * 0.5f;
 
         vertexCounter++;
     }
@@ -690,7 +690,9 @@ GLUSboolean GLUSAPIENTRY glusShapeCreateDomef(GLUSshape* shape, const GLUSfloat 
     GLUSfloat helpQuaternion[4];
     GLUSfloat helpMatrix[16];
 
-    if (numberSlices < 3 || numberVertices > GLUS_MAX_VERTICES || numberIndices > GLUS_MAX_INDICES)
+    // At least four slices are needed. Otherwise numberParallels is zero, which results in
+    // a division by zero for the texture coordinates and in no indices at all.
+    if (numberSlices < 4 || numberParallels < 1 || numberVertices > GLUS_MAX_VERTICES || numberIndices > GLUS_MAX_INDICES)
     {
         return GLUS_FALSE;
     }
@@ -1301,6 +1303,19 @@ GLUSboolean GLUSAPIENTRY glusShapeCalculateTangentBitangentf(GLUSshape* shape)
         return GLUS_FALSE;
     }
 
+    // Three elements are consumed per triangle, so the counts have to be a multiple of three.
+    if (shape->numberIndices > 0)
+    {
+        if (!shape->indices || shape->numberIndices % 3 != 0)
+        {
+            return GLUS_FALSE;
+        }
+    }
+    else if (shape->numberVertices % 3 != 0)
+    {
+        return GLUS_FALSE;
+    }
+
     // Allocate memory if needed
     if (!shape->tangents)
     {
@@ -1342,15 +1357,25 @@ GLUSboolean GLUSAPIENTRY glusShapeCalculateTangentBitangentf(GLUSshape* shape)
         float tangent[3];
         float bitangent[3];
         float scalar;
+        float determinant;
 
-        for (i = 0; i < shape->numberIndices; i += 3)
+        for (i = 0; i + 2 < shape->numberIndices; i += 3)
         {
             s1 = shape->texCoords[2 * shape->indices[i + 1]] - shape->texCoords[2 * shape->indices[i]];
             t1 = shape->texCoords[2 * shape->indices[i + 1] + 1] - shape->texCoords[2 * shape->indices[i] + 1];
             s2 = shape->texCoords[2 * shape->indices[i + 2]] - shape->texCoords[2 * shape->indices[i]];
             t2 = shape->texCoords[2 * shape->indices[i + 2] + 1] - shape->texCoords[2 * shape->indices[i] + 1];
 
-            scalar = 1.0f / (s1 * t2 - s2 * t1);
+            determinant = s1 * t2 - s2 * t1;
+
+            // Triangles with degenerated texture coordinates would produce infinite or not a
+            // number values, which are accumulated into and thus poison the shared vertices.
+            if (fabsf(determinant) <= 1.0e-8f)
+            {
+                continue;
+            }
+
+            scalar = 1.0f / determinant;
 
             glusPoint4SubtractPoint4f(Q1, &shape->vertices[4 * shape->indices[i + 1]], &shape->vertices[4 * shape->indices[i]]);
             Q1[3] = 1.0f;
@@ -1402,15 +1427,25 @@ GLUSboolean GLUSAPIENTRY glusShapeCalculateTangentBitangentf(GLUSshape* shape)
         float tangent[3];
         float bitangent[3];
         float scalar;
+        float determinant;
 
-        for (i = 0; i < shape->numberVertices; i += 3)
+        for (i = 0; i + 2 < shape->numberVertices; i += 3)
         {
             s1 = shape->texCoords[2 * (i + 1)] - shape->texCoords[2 * i];
             t1 = shape->texCoords[2 * (i + 1) + 1] - shape->texCoords[2 * i + 1];
             s2 = shape->texCoords[2 * (i + 2)] - shape->texCoords[2 * i];
             t2 = shape->texCoords[2 * (i + 2) + 1] - shape->texCoords[2 * i + 1];
 
-            scalar = 1.0f / (s1 * t2 - s2 * t1);
+            determinant = s1 * t2 - s2 * t1;
+
+            // Triangles with degenerated texture coordinates would produce infinite or not a
+            // number values, which are accumulated into and thus poison the shared vertices.
+            if (fabsf(determinant) <= 1.0e-8f)
+            {
+                continue;
+            }
+
+            scalar = 1.0f / determinant;
 
             glusPoint4SubtractPoint4f(Q1, &shape->vertices[4 * (i + 1)], &shape->vertices[4 * i]);
             Q1[3] = 1.0f;

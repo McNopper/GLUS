@@ -98,6 +98,23 @@ static GLUSint iblMipLevels(GLUSint size)
 }
 
 // ---------------------------------------------------------------------------
+// Internal helper — check, that the currently bound framebuffer is complete.
+// ---------------------------------------------------------------------------
+static GLUSboolean iblCheckFramebuffer(void)
+{
+    GLUSenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+
+    if (status != GL_FRAMEBUFFER_COMPLETE)
+    {
+        glusLogPrint(GLUS_LOG_ERROR, "glus_ibl: framebuffer is not complete: 0x%x", status);
+
+        return GLUS_FALSE;
+    }
+
+    return GLUS_TRUE;
+}
+
+// ---------------------------------------------------------------------------
 // Internal helper — convert the equirectangular panorama to a mipmapped
 // GL_TEXTURE_CUBE_MAP.  The caller must delete the returned texture when done.
 // ---------------------------------------------------------------------------
@@ -108,6 +125,7 @@ static GLUSboolean buildSourceCubemap(GLUSuint* cubemapOut, GLUSuint panoramaTex
     GLUSint     locPanorama, locFace;
     GLUSint     face;
     GLUSint     savedViewport[4];
+    GLUSboolean complete = GLUS_TRUE;
 
     if (!iblBuildProgram(&program, "glus_ibl.vert.glsl", "glus_ibl_background.frag.glsl"))
     {
@@ -117,9 +135,10 @@ static GLUSboolean buildSourceCubemap(GLUSuint* cubemapOut, GLUSuint panoramaTex
     locPanorama = glGetUniformLocation(program.program, "u_panoramaTexture");
     locFace     = glGetUniformLocation(program.program, "u_face");
 
+    // GL_RGBA32F is required to be colour renderable, GL_RGB32F is not.
     glGenTextures(1, &tex);
     glBindTexture(GL_TEXTURE_CUBE_MAP, tex);
-    glTexStorage2D(GL_TEXTURE_CUBE_MAP, iblMipLevels(size), GL_RGB32F, size, size);
+    glTexStorage2D(GL_TEXTURE_CUBE_MAP, iblMipLevels(size), GL_RGBA32F, size, size);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -145,14 +164,25 @@ static GLUSboolean buildSourceCubemap(GLUSuint* cubemapOut, GLUSuint panoramaTex
     {
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
                                GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, tex, 0);
+
+        if (!iblCheckFramebuffer())
+        {
+            complete = GLUS_FALSE;
+
+            break;
+        }
+
         glUniform1i(locFace, face);
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     }
 
-    // Generate the full mip chain so specular/diffuse shaders can use textureLod.
-    glBindTexture(GL_TEXTURE_CUBE_MAP, tex);
-    glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+    if (complete)
+    {
+        // Generate the full mip chain so specular/diffuse shaders can use textureLod.
+        glBindTexture(GL_TEXTURE_CUBE_MAP, tex);
+        glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+    }
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glBindVertexArray(0);
@@ -163,6 +193,13 @@ static GLUSboolean buildSourceCubemap(GLUSuint* cubemapOut, GLUSuint panoramaTex
     glusProgramDestroy(&program);
 
     glViewport(savedViewport[0], savedViewport[1], savedViewport[2], savedViewport[3]);
+
+    if (!complete)
+    {
+        glDeleteTextures(1, &tex);
+
+        return GLUS_FALSE;
+    }
 
     *cubemapOut = tex;
     return GLUS_TRUE;
@@ -197,6 +234,7 @@ GLUSboolean GLUSAPIENTRY glusIblBuildBackgroundCubemap(GLUSuint* backgroundTextu
     GLUSint     locFace;
     GLUSint     face;
     GLUSint     savedViewport[4];
+    GLUSboolean complete = GLUS_TRUE;
 
     if (!backgroundTexture || !panoramaTexture || size <= 0)
     {
@@ -212,10 +250,11 @@ GLUSboolean GLUSAPIENTRY glusIblBuildBackgroundCubemap(GLUSuint* backgroundTextu
     locPanorama = glGetUniformLocation(program.program, "u_panoramaTexture");
     locFace     = glGetUniformLocation(program.program, "u_face");
 
-    // Create the output cubemap texture.
+    // Create the output cubemap texture. GL_RGBA32F is required to be colour renderable,
+    // GL_RGB32F is not.
     glGenTextures(1, &tex);
     glBindTexture(GL_TEXTURE_CUBE_MAP, tex);
-    glTexStorage2D(GL_TEXTURE_CUBE_MAP, 1, GL_RGB32F, size, size);
+    glTexStorage2D(GL_TEXTURE_CUBE_MAP, 1, GL_RGBA32F, size, size);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -243,6 +282,14 @@ GLUSboolean GLUSAPIENTRY glusIblBuildBackgroundCubemap(GLUSuint* backgroundTextu
     {
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
                                GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, tex, 0);
+
+        if (!iblCheckFramebuffer())
+        {
+            complete = GLUS_FALSE;
+
+            break;
+        }
+
         glUniform1i(locFace, face);
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     }
@@ -257,6 +304,13 @@ GLUSboolean GLUSAPIENTRY glusIblBuildBackgroundCubemap(GLUSuint* backgroundTextu
     glusProgramDestroy(&program);
 
     glViewport(savedViewport[0], savedViewport[1], savedViewport[2], savedViewport[3]);
+
+    if (!complete)
+    {
+        glDeleteTextures(1, &tex);
+
+        return GLUS_FALSE;
+    }
 
     *backgroundTexture = tex;
     return GLUS_TRUE;
@@ -281,6 +335,8 @@ GLUSboolean GLUSAPIENTRY glusIblBuildSpecularEnvironmentMap(GLUSuint* specularTe
     GLUSint     face;
     GLUSfloat   roughness;
     GLUSint     savedViewport[4];
+    GLUSboolean complete       = GLUS_TRUE;
+    GLUSboolean seamlessWasSet = GLUS_FALSE;
 
     if (!specularTexture || !panoramaTexture || size <= 0 || numberRoughness <= 0)
     {
@@ -304,10 +360,11 @@ GLUSboolean GLUSAPIENTRY glusIblBuildSpecularEnvironmentMap(GLUSuint* specularTe
     locRoughness = glGetUniformLocation(program.program, "u_roughness");
     locWidth     = glGetUniformLocation(program.program, "u_width");
 
-    // GL_TEXTURE_CUBE_MAP_ARRAY: depth = numberRoughness * 6 layers.
+    // GL_TEXTURE_CUBE_MAP_ARRAY: depth = numberRoughness * 6 layers. GL_RGBA32F is required
+    // to be colour renderable, GL_RGB32F is not.
     glGenTextures(1, &tex);
     glBindTexture(GL_TEXTURE_CUBE_MAP_ARRAY, tex);
-    glTexStorage3D(GL_TEXTURE_CUBE_MAP_ARRAY, 1, GL_RGB32F, size, size, numberRoughness * 6);
+    glTexStorage3D(GL_TEXTURE_CUBE_MAP_ARRAY, 1, GL_RGBA32F, size, size, numberRoughness * 6);
     glTexParameteri(GL_TEXTURE_CUBE_MAP_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_CUBE_MAP_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_CUBE_MAP_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -321,6 +378,8 @@ GLUSboolean GLUSAPIENTRY glusIblBuildSpecularEnvironmentMap(GLUSuint* specularTe
 
     glUseProgram(program.program);
 
+    // Seamless filtering is a global state, so only change it, if it is not already enabled.
+    seamlessWasSet = (GLUSboolean)glIsEnabled(GL_TEXTURE_CUBE_MAP_SEAMLESS);
     glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 
     glActiveTexture(GL_TEXTURE0);
@@ -332,7 +391,7 @@ GLUSboolean GLUSAPIENTRY glusIblBuildSpecularEnvironmentMap(GLUSuint* specularTe
     glGetIntegerv(GL_VIEWPORT, savedViewport);
     glViewport(0, 0, size, size);
 
-    for (level = 0; level < numberRoughness; level++)
+    for (level = 0; level < numberRoughness && complete; level++)
     {
         roughness = (numberRoughness > 1) ? (GLUSfloat)level / (GLUSfloat)(numberRoughness - 1) : 0.0f;
         glUniform1f(locRoughness, roughness);
@@ -342,6 +401,14 @@ GLUSboolean GLUSAPIENTRY glusIblBuildSpecularEnvironmentMap(GLUSuint* specularTe
             // Layer index: each roughness level has 6 consecutive face layers.
             glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
                                       tex, 0, level * 6 + face);
+
+            if (!iblCheckFramebuffer())
+            {
+                complete = GLUS_FALSE;
+
+                break;
+            }
+
             glUniform1i(locFace, face);
             glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
         }
@@ -351,12 +418,24 @@ GLUSboolean GLUSAPIENTRY glusIblBuildSpecularEnvironmentMap(GLUSuint* specularTe
     glBindVertexArray(0);
     glUseProgram(0);
 
+    if (!seamlessWasSet)
+    {
+        glDisable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+    }
+
     glDeleteFramebuffers(1, &fbo);
     glDeleteVertexArrays(1, &vao);
     glusProgramDestroy(&program);
     glDeleteTextures(1, &srcCubemap);
 
     glViewport(savedViewport[0], savedViewport[1], savedViewport[2], savedViewport[3]);
+
+    if (!complete)
+    {
+        glDeleteTextures(1, &tex);
+
+        return GLUS_FALSE;
+    }
 
     *specularTexture = tex;
     return GLUS_TRUE;
@@ -378,6 +457,8 @@ GLUSboolean GLUSAPIENTRY glusIblBuildDiffuseEnvironmentMap(GLUSuint* diffuseText
     GLUSint     locWidth;
     GLUSint     face;
     GLUSint     savedViewport[4];
+    GLUSboolean complete       = GLUS_TRUE;
+    GLUSboolean seamlessWasSet = GLUS_FALSE;
 
     if (!diffuseTexture || !panoramaTexture || size <= 0)
     {
@@ -399,9 +480,10 @@ GLUSboolean GLUSAPIENTRY glusIblBuildDiffuseEnvironmentMap(GLUSuint* diffuseText
     locFace    = glGetUniformLocation(program.program, "u_face");
     locWidth   = glGetUniformLocation(program.program, "u_width");
 
+    // GL_RGBA32F is required to be colour renderable, GL_RGB32F is not.
     glGenTextures(1, &tex);
     glBindTexture(GL_TEXTURE_CUBE_MAP, tex);
-    glTexStorage2D(GL_TEXTURE_CUBE_MAP, 1, GL_RGB32F, size, size);
+    glTexStorage2D(GL_TEXTURE_CUBE_MAP, 1, GL_RGBA32F, size, size);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -415,6 +497,8 @@ GLUSboolean GLUSAPIENTRY glusIblBuildDiffuseEnvironmentMap(GLUSuint* diffuseText
 
     glUseProgram(program.program);
 
+    // Seamless filtering is a global state, so only change it, if it is not already enabled.
+    seamlessWasSet = (GLUSboolean)glIsEnabled(GL_TEXTURE_CUBE_MAP_SEAMLESS);
     glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 
     glActiveTexture(GL_TEXTURE0);
@@ -430,6 +514,14 @@ GLUSboolean GLUSAPIENTRY glusIblBuildDiffuseEnvironmentMap(GLUSuint* diffuseText
     {
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
                                GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, tex, 0);
+
+        if (!iblCheckFramebuffer())
+        {
+            complete = GLUS_FALSE;
+
+            break;
+        }
+
         glUniform1i(locFace, face);
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     }
@@ -438,12 +530,24 @@ GLUSboolean GLUSAPIENTRY glusIblBuildDiffuseEnvironmentMap(GLUSuint* diffuseText
     glBindVertexArray(0);
     glUseProgram(0);
 
+    if (!seamlessWasSet)
+    {
+        glDisable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+    }
+
     glDeleteFramebuffers(1, &fbo);
     glDeleteVertexArrays(1, &vao);
     glusProgramDestroy(&program);
     glDeleteTextures(1, &srcCubemap);
 
     glViewport(savedViewport[0], savedViewport[1], savedViewport[2], savedViewport[3]);
+
+    if (!complete)
+    {
+        glDeleteTextures(1, &tex);
+
+        return GLUS_FALSE;
+    }
 
     *diffuseTexture = tex;
     return GLUS_TRUE;
@@ -460,6 +564,7 @@ GLUSboolean GLUSAPIENTRY glusIblBuildBrdfLookupTable(GLUSuint* brdfLutTexture, G
     GLUSuint    vao;
     GLUSuint    tex;
     GLUSint     savedViewport[4];
+    GLUSboolean complete = GLUS_TRUE;
 
     if (!brdfLutTexture || size <= 0)
     {
@@ -492,7 +597,14 @@ GLUSboolean GLUSAPIENTRY glusIblBuildBrdfLookupTable(GLUSuint* brdfLutTexture, G
     glGetIntegerv(GL_VIEWPORT, savedViewport);
     glViewport(0, 0, size, size);
 
-    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    if (iblCheckFramebuffer())
+    {
+        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    }
+    else
+    {
+        complete = GLUS_FALSE;
+    }
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glBindVertexArray(0);
@@ -503,6 +615,13 @@ GLUSboolean GLUSAPIENTRY glusIblBuildBrdfLookupTable(GLUSuint* brdfLutTexture, G
     glusProgramDestroy(&program);
 
     glViewport(savedViewport[0], savedViewport[1], savedViewport[2], savedViewport[3]);
+
+    if (!complete)
+    {
+        glDeleteTextures(1, &tex);
+
+        return GLUS_FALSE;
+    }
 
     *brdfLutTexture = tex;
     return GLUS_TRUE;

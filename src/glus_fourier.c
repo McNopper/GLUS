@@ -22,6 +22,10 @@
 
 #include "GL/glus.h"
 
+// The DFT matrix needs n * n elements and the element index is calculated with signed
+// integers, so n is limited to the square root of the maximum signed integer.
+#define GLUS_MAX_DFT_N 46340
+
 static GLUSboolean glusFourierIsPowerOfTwo(const GLUSint n)
 {
     GLUSint test = n;
@@ -46,7 +50,7 @@ GLUSboolean glusFourierDFTc(GLUScomplex* result, const GLUScomplex* vector, cons
         return GLUS_FALSE;
     }
 
-    if (n > 0)
+    if (n > 0 && n <= GLUS_MAX_DFT_N)
     {
         GLUSboolean status;
 
@@ -54,7 +58,7 @@ GLUSboolean glusFourierDFTc(GLUScomplex* result, const GLUScomplex* vector, cons
 
         GLUSfloat scalar = 1.0f / (GLUSfloat)n;
 
-        GLUScomplex* dftMatrix = (GLUScomplex*)glusMemoryMalloc(n * n * sizeof(GLUScomplex));
+        GLUScomplex* dftMatrix = (GLUScomplex*)glusMemoryMalloc((size_t)n * (size_t)n * sizeof(GLUScomplex));
 
         if (!dftMatrix)
         {
@@ -88,13 +92,13 @@ GLUSboolean glusFourierInverseDFTc(GLUScomplex* result, const GLUScomplex* vecto
         return GLUS_FALSE;
     }
 
-    if (n > 0)
+    if (n > 0 && n <= GLUS_MAX_DFT_N)
     {
         GLUSboolean status;
 
         GLUSint row, column;
 
-        GLUScomplex* dftInverseMatrix = (GLUScomplex*)glusMemoryMalloc(n * n * sizeof(GLUScomplex));
+        GLUScomplex* dftInverseMatrix = (GLUScomplex*)glusMemoryMalloc((size_t)n * (size_t)n * sizeof(GLUScomplex));
 
         if (!dftInverseMatrix)
         {
@@ -298,8 +302,8 @@ static GLUSvoid glusFourierButterflyFunctionFFTc(GLUScomplex* vector, const GLUS
 
             for (currentButterfly = 0; currentButterfly < numberButterfliesInSection; currentButterfly++)
             {
-                GLUSint leftIndex  = currentButterfly + currentSection * numberButterfliesInSection * 2;
-                GLUSint rightIndex = currentButterfly + numberButterfliesInSection + currentSection * numberButterfliesInSection * 2;
+                GLUSint leftIndex  = offset + currentButterfly + currentSection * numberButterfliesInSection * 2;
+                GLUSint rightIndex = offset + currentButterfly + numberButterfliesInSection + currentSection * numberButterfliesInSection * 2;
 
                 GLUScomplex multiply;
                 GLUScomplex addition;

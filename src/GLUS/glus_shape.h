@@ -155,7 +155,7 @@ GLUSAPI GLUSboolean GLUSAPIENTRY glusShapeCreateSpheref(GLUSshape* shape, const 
  *
  * @param shape The data is stored into this structure.
  * @param radius The radius of the dome.
- * @param numberSlices The number of slices the dome should have.
+ * @param numberSlices The number of slices the dome should have. At least four.
  *
  * @return GLUS_TRUE, if creation succeeded.
  */
