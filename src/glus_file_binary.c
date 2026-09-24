@@ -70,7 +70,10 @@ GLUSboolean GLUSAPIENTRY glusFileLoadBinary(const GLUSchar* filename, GLUSbinary
 
     binaryfile->length = (GLUSint)fileLength;
 
-    binaryfile->binary = (GLUSubyte*)glusMemoryMalloc((size_t)binaryfile->length);
+    // A zero-length file is legitimate input. Some allocators return NULL for a
+    // zero-size request, which the caller would misread as an out-of-memory
+    // failure - so always request at least one byte.
+    binaryfile->binary = (GLUSubyte*)glusMemoryMalloc((size_t)binaryfile->length + 1);
 
     if (!binaryfile->binary)
     {
@@ -83,7 +86,13 @@ GLUSboolean GLUSAPIENTRY glusFileLoadBinary(const GLUSchar* filename, GLUSbinary
 
     memset(binaryfile->binary, 0, (size_t)binaryfile->length);
 
-    rewind(f);
+    // rewind() reports no error; fseek does.
+    if (fseek(f, 0, SEEK_SET) != 0)
+    {
+        glusFileDestroyBinary(binaryfile);
+
+        return GLUS_FALSE;
+    }
 
     elementsRead = fread(binaryfile->binary, 1, (size_t)binaryfile->length, f);
 

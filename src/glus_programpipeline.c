@@ -109,5 +109,6 @@ GLUSvoid GLUSAPIENTRY glusProgramPipelineDestroy(GLUSprogrampipeline* programPip
     programPipeline->fragmentProgram   = 0;
     programPipeline->evaluationProgram = 0;
     programPipeline->controlProgram    = 0;
+    programPipeline->geometryProgram   = 0;
     programPipeline->vertexProgram     = 0;
 }

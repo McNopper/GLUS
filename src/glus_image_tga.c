@@ -46,7 +46,10 @@ static GLUSvoid glusImageSwapColorChannel(GLUSint width, GLUSint height, GLUSenu
     }
 
     // swap the R and B values to get RGB since the bitmap color format is in BGR
-    for (i = 0; i < width * height * bytesPerPixel; i += bytesPerPixel)
+    // Bound in 64 bits: width * height * bytesPerPixel is GLUSint arithmetic and
+    // overflows for large caller-built images, after which the loop bound wraps
+    // and the BGR swap is silently skipped.
+    for (i = 0; (GLUSint64)i < (GLUSint64)width * (GLUSint64)height * bytesPerPixel; i += bytesPerPixel)
     {
         temp        = data[i];
         data[i]     = data[i + 2];
@@ -58,7 +61,7 @@ GLUSboolean GLUSAPIENTRY glusImageCreateTga(GLUStgaimage* tgaimage, GLUSint widt
 {
     GLUSint stride;
 
-    if (!tgaimage || width < 1 || height < 1 || depth < 1)
+    if (!tgaimage || width < 1 || height < 1 || depth < 1 || width > 65535 || height > 65535 || depth > 65535)
     {
         return GLUS_FALSE;
     }
@@ -286,7 +289,11 @@ GLUSboolean GLUSAPIENTRY glusImageLoadTga(const GLUSchar* filename, GLUStgaimage
     }
 
     // allocate enough memory for the targa  data
-    tgaimage->data = (GLUSubyte*)glusMemoryMalloc((size_t)tgaimage->width * tgaimage->height * bitsPerPixel / 8);
+    // Divide the pixel size down before multiplying: `(size_t)w * h * bpp / 8`
+    // evaluates `w * h * bpp` first, which wraps on a 32-bit size_t for large
+    // (but legal) dimensions and then allocates far too little for the RLE
+    // path to write into.
+    tgaimage->data = (GLUSubyte*)glusMemoryMalloc((size_t)tgaimage->width * (size_t)tgaimage->height * (size_t)(bitsPerPixel / 8));
 
     // verify memory allocation
     if (!tgaimage->data)
@@ -307,9 +314,9 @@ GLUSboolean GLUSAPIENTRY glusImageLoadTga(const GLUSchar* filename, GLUStgaimage
     if (imageType == 1 || imageType == 2 || imageType == 3)
     {
         // read in the raw data
-        elementsRead = fread(tgaimage->data, 1, (size_t)tgaimage->width * tgaimage->height * bitsPerPixel / 8, file);
+        elementsRead = fread(tgaimage->data, 1, (size_t)tgaimage->width * (size_t)tgaimage->height * (size_t)(bitsPerPixel / 8), file);
 
-        if (!_glusFileCheckRead(file, elementsRead, (size_t)tgaimage->width * tgaimage->height * bitsPerPixel / 8))
+        if (!_glusFileCheckRead(file, elementsRead, (size_t)tgaimage->width * (size_t)tgaimage->height * (size_t)(bitsPerPixel / 8)))
         {
             glusImageDestroyTga(tgaimage);
 
@@ -373,7 +380,12 @@ GLUSboolean GLUSAPIENTRY glusImageLoadTga(const GLUSchar* filename, GLUStgaimage
                 amount++;
 
                 // read in the rle data
-                elementsRead = fread(&tgaimage->data[pixelsRead * bitsPerPixel / 8], 1, bitsPerPixel / 8, file);
+                // The byte offset is computed in size_t and with the pixel size
+                // divided down first: `pixelsRead * bitsPerPixel / 8` is signed
+                // 32-bit arithmetic and overflows at 2^26 pixels for 32bpp, after
+                // which fread writes attacker-controlled bytes at a wrapped
+                // (negative) offset outside the buffer.
+                elementsRead = fread(&tgaimage->data[(size_t)pixelsRead * (size_t)(bitsPerPixel / 8)], 1, bitsPerPixel / 8, file);
 
                 if (!_glusFileCheckRead(file, elementsRead, bitsPerPixel / 8))
                 {
@@ -392,7 +404,7 @@ GLUSboolean GLUSAPIENTRY glusImageLoadTga(const GLUSchar* filename, GLUStgaimage
                 {
                     for (k = 0; k < bitsPerPixel / 8; k++)
                     {
-                        tgaimage->data[(pixelsRead + i) * bitsPerPixel / 8 + k] = tgaimage->data[pixelsRead * bitsPerPixel / 8 + k];
+                        tgaimage->data[(size_t)(pixelsRead + i) * (size_t)(bitsPerPixel / 8) + k] = tgaimage->data[(size_t)pixelsRead * (size_t)(bitsPerPixel / 8) + k];
                     }
                 }
             }
@@ -403,9 +415,9 @@ GLUSboolean GLUSAPIENTRY glusImageLoadTga(const GLUSchar* filename, GLUStgaimage
                 amount++;
 
                 // read in the raw data
-                elementsRead = fread(&tgaimage->data[pixelsRead * bitsPerPixel / 8], 1, (size_t)amount * bitsPerPixel / 8, file);
+                elementsRead = fread(&tgaimage->data[(size_t)pixelsRead * (size_t)(bitsPerPixel / 8)], 1, (size_t)amount * (size_t)(bitsPerPixel / 8), file);
 
-                if (!_glusFileCheckRead(file, elementsRead, (size_t)amount * bitsPerPixel / 8))
+                if (!_glusFileCheckRead(file, elementsRead, (size_t)amount * (size_t)(bitsPerPixel / 8)))
                 {
                     glusImageDestroyTga(tgaimage);
 
@@ -813,7 +825,7 @@ GLUSboolean GLUSAPIENTRY glusImageConvertTga(GLUStgaimage* targetImage, const GL
                     }
                     else if (targetImage->format == GLUS_LUMINANCE)
                     {
-                        channels[0] = (GLUSubyte)(sourceImage->data[sourceNumberChannels * z * sourceImage->height * sourceImage->width + sourceNumberChannels * y * sourceImage->width + sourceNumberChannels * x + 0] * toLuminace[0]);
+                        channels[0] = (GLUSubyte)((GLUSfloat)sourceImage->data[sourceNumberChannels * z * sourceImage->height * sourceImage->width + sourceNumberChannels * y * sourceImage->width + sourceNumberChannels * x + 0] * toLuminace[0]);
                     }
                 }
                 else if (sourceImage->format == GLUS_ALPHA)
@@ -842,7 +854,7 @@ GLUSboolean GLUSAPIENTRY glusImageConvertTga(GLUStgaimage* targetImage, const GL
                 {
                     if (targetImage->format == GLUS_RED)
                     {
-                        channels[0] = (GLUSubyte)glusMathClampf(sourceImage->data[sourceNumberChannels * z * sourceImage->height * sourceImage->width + sourceNumberChannels * y * sourceImage->width + sourceNumberChannels * x + 0] / toLuminace[0], 0.0f, 1.0f);
+                        channels[0] = (GLUSubyte)glusMathClampf((GLUSfloat)sourceImage->data[sourceNumberChannels * z * sourceImage->height * sourceImage->width + sourceNumberChannels * y * sourceImage->width + sourceNumberChannels * x + 0] / toLuminace[0], 0.0f, 255.0f);
                     }
                     else if (targetImage->format == GLUS_RGB || targetImage->format == GLUS_RGBA)
                     {
@@ -887,7 +899,7 @@ GLUSboolean GLUSAPIENTRY glusImageConvertTga(GLUStgaimage* targetImage, const GL
 
                         for (c = 0; c < 3; c++)
                         {
-                            luminance += sourceImage->data[sourceNumberChannels * z * sourceImage->height * sourceImage->width + sourceNumberChannels * y * sourceImage->width + sourceNumberChannels * x + c] * toLuminace[c];
+                            luminance += (GLUSfloat)sourceImage->data[sourceNumberChannels * z * sourceImage->height * sourceImage->width + sourceNumberChannels * y * sourceImage->width + sourceNumberChannels * x + c] * toLuminace[c];
                         }
 
                         channels[0] = (GLUSubyte)luminance;
@@ -966,6 +978,10 @@ GLUSboolean GLUSAPIENTRY glusImageToPremultiplyTga(GLUStgaimage* targetImage, co
 
                     targetImage->data[4 * z * targetImage->height * targetImage->width + 4 * y * targetImage->width + 4 * x + c] = (GLUSubyte)glusMathClampf(channel * alpha * 255.0f, 0.0f, 255.0f);
                 }
+
+                // Copy alpha too. The loop above only writes RGB, so the output's
+                // alpha bytes were uninitialized heap garbage in every pixel.
+                targetImage->data[4 * z * targetImage->height * targetImage->width + 4 * y * targetImage->width + 4 * x + 3] = sourceImage->data[4 * z * targetImage->height * targetImage->width + 4 * y * targetImage->width + 4 * x + 3];
             }
         }
     }

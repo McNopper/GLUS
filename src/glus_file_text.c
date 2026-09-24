@@ -83,7 +83,13 @@ GLUSboolean GLUSAPIENTRY glusFileLoadText(const GLUSchar* filename, GLUStextfile
 
     memset(textfile->text, 0, (size_t)textfile->length + 1);
 
-    rewind(f);
+    // rewind() reports no error; fseek does.
+    if (fseek(f, 0, SEEK_SET) != 0)
+    {
+        glusFileDestroyText(textfile);
+
+        return GLUS_FALSE;
+    }
 
     elementsRead = fread(textfile->text, 1, (size_t)textfile->length, f);
 

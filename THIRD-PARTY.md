@@ -96,10 +96,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## stb — version master (stb_image.h)
+## stb - version 2c980bb (stb_image.h)
 
 - **License:** MIT OR Unlicense (dual-licensed — choose either)
-- **Upstream:** https://github.com/nothings/stb.git (GIT_TAG master)
+- **Upstream:** https://github.com/nothings/stb.git (GIT_TAG 2c980bb59875b0d32144a71867fbdebb2f77cd20)
 - **Copyright:** Copyright (c) 2017 Sean Barrett
 
 This software is available under 2 licenses — choose whichever you prefer.

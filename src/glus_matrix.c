@@ -1503,7 +1503,7 @@ GLUSvoid GLUSAPIENTRY glusMatrix4x4GetScalef(GLUSfloat scales[3], const GLUSfloa
 
     for (i = 0; i < 3; i++)
     {
-        scales[i] = sqrtf(matrix[4 * i] * matrix[4 * i] + matrix[4 * i + 1] * matrix[4 * i + 1] + matrix[4 * i + 2] * matrix[4 * i + 2]);
+        scales[i] = sqrtf(matrix[(ptrdiff_t)4 * i] * matrix[(ptrdiff_t)4 * i] + matrix[4 * i + 1] * matrix[4 * i + 1] + matrix[4 * i + 2] * matrix[4 * i + 2]);
     }
 }
 
@@ -1513,7 +1513,7 @@ GLUSvoid GLUSAPIENTRY glusMatrix3x3GetScalef(GLUSfloat scales[3], const GLUSfloa
 
     for (i = 0; i < 3; i++)
     {
-        scales[i] = sqrtf(matrix[3 * i] * matrix[3 * i] + matrix[3 * i + 1] * matrix[3 * i + 1] + matrix[3 * i + 2] * matrix[3 * i + 2]);
+        scales[i] = sqrtf(matrix[(ptrdiff_t)3 * i] * matrix[(ptrdiff_t)3 * i] + matrix[3 * i + 1] * matrix[3 * i + 1] + matrix[3 * i + 2] * matrix[3 * i + 2]);
     }
 }
 
@@ -1523,7 +1523,7 @@ GLUSvoid GLUSAPIENTRY glusMatrix2x2GetScalef(GLUSfloat scales[2], const GLUSfloa
 
     for (i = 0; i < 2; i++)
     {
-        scales[i] = sqrtf(matrix[2 * i] * matrix[2 * i] + matrix[2 * i + 1] * matrix[2 * i + 1]);
+        scales[i] = sqrtf(matrix[(ptrdiff_t)2 * i] * matrix[(ptrdiff_t)2 * i] + matrix[2 * i + 1] * matrix[2 * i + 1]);
     }
 }
 

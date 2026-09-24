@@ -130,7 +130,7 @@ GLUSboolean GLUSAPIENTRY glusPerlinCreateNoise1D(GLUStgaimage* image, const GLUS
         return GLUS_FALSE;
     }
 
-    if (persistence <= 0.0f || width < 1)
+    if (persistence <= 0.0f || width < 1 || width > 65535)
     {
         return GLUS_FALSE;
     }
@@ -139,7 +139,7 @@ GLUSboolean GLUSAPIENTRY glusPerlinCreateNoise1D(GLUStgaimage* image, const GLUS
     image->height = 1;
     image->depth  = 1;
     image->format = GLUS_SINGLE_CHANNEL;
-    image->data   = glusMemoryMalloc(width * sizeof(GLUSubyte));
+    image->data   = glusMemoryMalloc((size_t)width * sizeof(GLUSubyte));
 
     if (!image->data)
     {
@@ -148,7 +148,7 @@ GLUSboolean GLUSAPIENTRY glusPerlinCreateNoise1D(GLUStgaimage* image, const GLUS
         return GLUS_FALSE;
     }
 
-    data = glusMemoryMalloc(width * sizeof(GLUSfloat));
+    data = glusMemoryMalloc((size_t)width * sizeof(GLUSfloat));
 
     if (!data)
     {
@@ -164,7 +164,7 @@ GLUSboolean GLUSAPIENTRY glusPerlinCreateNoise1D(GLUStgaimage* image, const GLUS
 
     //
 
-    data1D = glusMemoryMalloc(width * sizeof(GLUSint));
+    data1D = glusMemoryMalloc((size_t)width * sizeof(GLUSint));
 
     if (!data1D)
     {
@@ -267,7 +267,10 @@ GLUSboolean GLUSAPIENTRY glusPerlinCreateNoise2D(GLUStgaimage* image, const GLUS
         return GLUS_FALSE;
     }
 
-    if (persistence <= 0.0f || width < 1 || height < 1)
+    // The dimensions are stored in GLUSushort, so anything above 65535 would be
+    // truncated (width == 65536 becomes 0 and the first noise lookup then does
+    // `x % 0`, an integer division by zero).
+    if (persistence <= 0.0f || width < 1 || height < 1 || width > 65535 || height > 65535)
     {
         return GLUS_FALSE;
     }
@@ -276,7 +279,7 @@ GLUSboolean GLUSAPIENTRY glusPerlinCreateNoise2D(GLUStgaimage* image, const GLUS
     image->height = (GLUSushort)height;
     image->depth  = 1;
     image->format = GLUS_SINGLE_CHANNEL;
-    image->data   = glusMemoryMalloc(width * height * sizeof(GLUSubyte));
+    image->data   = glusMemoryMalloc((size_t)width * (size_t)height * sizeof(GLUSubyte));
 
     if (!image->data)
     {
@@ -285,7 +288,7 @@ GLUSboolean GLUSAPIENTRY glusPerlinCreateNoise2D(GLUStgaimage* image, const GLUS
         return GLUS_FALSE;
     }
 
-    data = glusMemoryMalloc(width * height * sizeof(GLUSfloat));
+    data = glusMemoryMalloc((size_t)width * (size_t)height * sizeof(GLUSfloat));
 
     if (!data)
     {
@@ -301,7 +304,7 @@ GLUSboolean GLUSAPIENTRY glusPerlinCreateNoise2D(GLUStgaimage* image, const GLUS
 
     //
 
-    data2D = glusMemoryMalloc(width * height * sizeof(GLUSint));
+    data2D = glusMemoryMalloc((size_t)width * (size_t)height * sizeof(GLUSint));
 
     if (!data2D)
     {
@@ -422,7 +425,10 @@ GLUSboolean GLUSAPIENTRY glusPerlinCreateNoise3D(GLUStgaimage* image, const GLUS
         return GLUS_FALSE;
     }
 
-    if (persistence <= 0.0f || width < 1 || height < 1 || depth < 1)
+    // The dimensions are stored in GLUSushort, so anything above 65535 would be
+    // truncated (width == 65536 becomes 0 and the first noise lookup then does
+    // `x % 0`, an integer division by zero).
+    if (persistence <= 0.0f || width < 1 || height < 1 || depth < 1 || width > 65535 || height > 65535 || depth > 65535)
     {
         return GLUS_FALSE;
     }

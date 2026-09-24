@@ -55,7 +55,7 @@ GLUSboolean GLUSAPIENTRY glusLineCreateLinef(GLUSline* line, const GLUSfloat poi
     line->numberVertices = 2;
     line->numberIndices  = 2;
 
-    line->vertices = (GLUSfloat*)glusMemoryMalloc(4 * line->numberVertices * sizeof(GLUSfloat));
+    line->vertices = (GLUSfloat*)glusMemoryMalloc((size_t)4 * line->numberVertices * sizeof(GLUSfloat));
     line->indices  = (GLUSindex*)glusMemoryMalloc(line->numberIndices * sizeof(GLUSindex));
 
     line->mode = GLUS_LINES;
@@ -87,7 +87,7 @@ GLUSboolean GLUSAPIENTRY glusLineCreateSquaref(GLUSline* line, const GLUSfloat h
     line->numberVertices = 4;
     line->numberIndices  = 4;
 
-    line->vertices = (GLUSfloat*)glusMemoryMalloc(4 * line->numberVertices * sizeof(GLUSfloat));
+    line->vertices = (GLUSfloat*)glusMemoryMalloc((size_t)4 * line->numberVertices * sizeof(GLUSfloat));
     line->indices  = (GLUSindex*)glusMemoryMalloc(line->numberIndices * sizeof(GLUSindex));
 
     line->mode = GLUS_LINE_LOOP;
@@ -130,20 +130,29 @@ GLUSboolean GLUSAPIENTRY glusLineCreateSquaref(GLUSline* line, const GLUSfloat h
 GLUSboolean GLUSAPIENTRY glusLineCreateRectangularGridf(GLUSline* line, const GLUSfloat horizontalExtend, const GLUSfloat verticalExtend, const GLUSuint rows, const GLUSuint columns)
 {
     GLUSuint i, offset;
-    GLUSuint numberVertices = (rows + 1) * 2 + (columns + 1) * 2;
-    GLUSuint numberIndices  = numberVertices;
+    GLUSuint numberVertices;
+    GLUSuint numberIndices;
+
+    // Accumulated in 64 bits: (rows + 1) * 2 + (columns + 1) * 2 wraps modulo 2^32
+    // in GLUSuint, so a large rows value yields a tiny count that passes the limit
+    // check while the fill loops still iterate rows + 1 times past the buffer.
+    GLUSuint64 wideNumberVertices = ((GLUSuint64)rows + 1) * 2 + ((GLUSuint64)columns + 1) * 2;
+
     float    rowStep, columnStep;
 
-    if (!line || rows < 1 || columns < 1 || numberVertices > GLUS_MAX_VERTICES || numberIndices > GLUS_MAX_INDICES)
+    if (!line || rows < 1 || columns < 1 || wideNumberVertices > GLUS_MAX_VERTICES || wideNumberVertices > (GLUSuint64)GLUS_MAX_INDICES)
     {
         return GLUS_FALSE;
     }
+
+    numberVertices = (GLUSuint)wideNumberVertices;
+    numberIndices  = numberVertices;
     glusLineInitf(line);
 
     line->numberVertices = numberVertices;
     line->numberIndices  = numberIndices;
 
-    line->vertices = (GLUSfloat*)glusMemoryMalloc(4 * line->numberVertices * sizeof(GLUSfloat));
+    line->vertices = (GLUSfloat*)glusMemoryMalloc((size_t)4 * line->numberVertices * sizeof(GLUSfloat));
     line->indices  = (GLUSindex*)glusMemoryMalloc(line->numberIndices * sizeof(GLUSindex));
 
     line->mode = GLUS_LINES;
@@ -163,7 +172,7 @@ GLUSboolean GLUSAPIENTRY glusLineCreateRectangularGridf(GLUSline* line, const GL
         line->vertices[2 + i * 4 * 2] = 0.0f;
         line->vertices[3 + i * 4 * 2] = 1.0f;
 
-        line->indices[i * 2] = i * 2;
+        line->indices[(size_t)i * 2] = i * 2;
 
         //
 
@@ -218,7 +227,7 @@ GLUSboolean GLUSAPIENTRY glusLineCreateCirclef(GLUSline* line, const GLUSfloat r
     line->numberVertices = numberSectors;
     line->numberIndices  = numberSectors;
 
-    line->vertices = (GLUSfloat*)glusMemoryMalloc(4 * line->numberVertices * sizeof(GLUSfloat));
+    line->vertices = (GLUSfloat*)glusMemoryMalloc((size_t)4 * line->numberVertices * sizeof(GLUSfloat));
     line->indices  = (GLUSindex*)glusMemoryMalloc(line->numberIndices * sizeof(GLUSindex));
 
     line->mode = GLUS_LINE_LOOP;
@@ -261,14 +270,14 @@ GLUSboolean GLUSAPIENTRY glusLineCopyf(GLUSline* line, const GLUSline* source)
 
     if (source->numberVertices)
     {
-        line->vertices = (GLUSfloat*)glusMemoryMalloc(4 * source->numberVertices * sizeof(GLUSfloat));
+        line->vertices = (GLUSfloat*)glusMemoryMalloc((size_t)4 * source->numberVertices * sizeof(GLUSfloat));
         if (!line->vertices)
         {
             glusLineDestroyf(line);
 
             return GLUS_FALSE;
         }
-        memcpy(line->vertices, source->vertices, 4 * source->numberVertices * sizeof(GLUSfloat));
+        memcpy(line->vertices, source->vertices, (size_t)4 * source->numberVertices * sizeof(GLUSfloat));
     }
 
     if (source->indices)

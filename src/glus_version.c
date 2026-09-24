@@ -39,7 +39,15 @@ GLUSboolean GLUSAPIENTRY glusVersionIsSupported(const GLUSint major, const GLUSi
         return GLUS_FALSE;
     }
 
-    driverMajor = atoi(version);
+    // Skip any non-numeric prefix. glGetString(GL_VERSION) is "4.6.0 ..." on
+    // desktop but "OpenGL ES 3.1 ..." on ES contexts, and atoi() on the latter
+    // returns 0 - so every version test reported unsupported on ES.
+    while (*version != '\0' && (*version < '0' || *version > '9'))
+    {
+        version++;
+    }
+
+    driverMajor = (GLUSint)strtol(version, NULL, 10);
 
     version = strchr(version, '.');
 
@@ -50,7 +58,7 @@ GLUSboolean GLUSAPIENTRY glusVersionIsSupported(const GLUSint major, const GLUSi
 
     version++;
 
-    driverMinor = atoi(version);
+    driverMinor = (GLUSint)strtol(version, NULL, 10);
 
     if (driverMajor < major)
     {

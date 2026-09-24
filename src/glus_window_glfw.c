@@ -444,6 +444,8 @@ GLUSboolean GLUSAPIENTRY glusWindowCreate(const GLUSchar* title, const GLUSint w
                 return GLUS_FALSE;
             }
             break;
+        default:
+            break; // Unrecognized attribute; ignored.
         }
 
         walker += 2;
@@ -561,6 +563,8 @@ GLUSboolean GLUSAPIENTRY glusWindowCreate(const GLUSchar* title, const GLUSint w
                 return GLUS_FALSE;
             }
             break;
+        default:
+            break; // Unrecognized attribute; ignored.
         }
 
         walker += 2;
@@ -608,6 +612,8 @@ GLUSboolean GLUSAPIENTRY glusWindowCreate(const GLUSchar* title, const GLUSint w
                 return GLUS_FALSE;
             }
             break;
+        default:
+            break; // Unrecognized attribute; ignored.
         }
 
         walker += 2;

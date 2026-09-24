@@ -107,7 +107,7 @@ static GLUSvoid glusProgramPrintProgramLog(const GLUSuint program, const GLUScha
 
 GLUSboolean GLUSAPIENTRY glusProgramCreateFromSource(GLUSprogram* shaderProgram, const GLUSchar** vertexSource, const GLUSchar** fragmentSource)
 {
-    GLUSint compiled;
+    GLUSint compiled = GLUS_FALSE;
 
     if (!shaderProgram || !vertexSource || !fragmentSource)
     {
@@ -164,7 +164,7 @@ GLUSboolean GLUSAPIENTRY glusProgramCreateFromSource(GLUSprogram* shaderProgram,
 
 GLUSboolean GLUSAPIENTRY glusProgramCreateComputeFromSource(GLUSprogram* shaderProgram, const GLUSchar** computeSource)
 {
-    GLUSint compiled;
+    GLUSint compiled = GLUS_FALSE;
 
     if (!shaderProgram || !computeSource)
     {

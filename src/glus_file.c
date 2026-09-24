@@ -77,8 +77,9 @@ FILE* GLUSAPIENTRY glusFileOpen(const char* filename, const char* mode)
         return fopen(filename, mode);
     }
 
-    strcpy(buffer, GLUS_BASE_DIRECTORY);
-    strcat(buffer, filename);
+    // Bounded and self-evidently safe: the length check above guarantees
+    // strlen(GLUS_BASE_DIRECTORY) + strlen(filename) + 1 <= GLUS_MAX_FILENAME.
+    snprintf(buffer, sizeof(buffer), "%s%s", GLUS_BASE_DIRECTORY, filename);
 
     return fopen(buffer, mode);
 }

@@ -37,8 +37,12 @@ GLUSboolean GLUSAPIENTRY glusImageLoadPkm(const GLUSchar* filename, GLUSpkmimage
     }
 
     pkmimage->data   = 0;
-    pkmimage->width  = 0;
-    pkmimage->height = 0;
+    // Fully initialize: on an early failure return the caller would otherwise
+    // read uninitialized depth and imageSize fields.
+    pkmimage->width     = 0;
+    pkmimage->height    = 0;
+    pkmimage->depth     = 0;
+    pkmimage->imageSize = 0;
 
     if (!glusFileLoadBinary(filename, &binaryfile))
     {

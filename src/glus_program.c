@@ -107,7 +107,7 @@ static GLUSvoid glusProgramPrintProgramLog(const GLUSuint program, const GLUScha
 
 GLUSboolean GLUSAPIENTRY glusProgramCreateFromSource(GLUSprogram* shaderProgram, const GLUSchar** vertexSource, const GLUSchar** controlSource, const GLUSchar** evaluationSource, const GLUSchar** geometrySource, const GLUSchar** fragmentSource)
 {
-    GLUSint compiled;
+    GLUSint compiled = GLUS_FALSE;
 
     if (!shaderProgram || !vertexSource || !fragmentSource)
     {
@@ -242,7 +242,7 @@ GLUSboolean GLUSAPIENTRY glusProgramCreateFromSource(GLUSprogram* shaderProgram,
 
 GLUSboolean GLUSAPIENTRY glusProgramCreateComputeFromSource(GLUSprogram* shaderProgram, const GLUSchar** computeSource)
 {
-    GLUSint compiled;
+    GLUSint compiled = GLUS_FALSE;
 
     if (!shaderProgram || !computeSource)
     {
@@ -283,7 +283,7 @@ GLUSboolean GLUSAPIENTRY glusProgramCreateComputeFromSource(GLUSprogram* shaderP
 
 GLUSboolean GLUSAPIENTRY glusProgramLink(GLUSprogram* shaderProgram)
 {
-    GLUSint linked;
+    GLUSint linked = GLUS_FALSE;
 
     if (!shaderProgram)
     {
@@ -328,7 +328,7 @@ GLUSboolean GLUSAPIENTRY glusProgramBuildComputeFromSource(GLUSprogram* shaderPr
 
 GLUSboolean GLUSAPIENTRY glusProgramBuildSeparableFromSource(GLUSprogram* shaderProgram, const GLUSenum type, const GLUSchar** source)
 {
-    GLUSint linked;
+    GLUSint linked = GLUS_FALSE;
 
     if (!glusVersionIsSupported(4, 1))
     {

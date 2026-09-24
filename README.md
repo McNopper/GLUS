@@ -8,6 +8,34 @@ shader utilities and more. GLUS lives in its own repository and is used by the
 
 ## Changelog
 
+### v1.1.2
+
+Second correctness pass, aimed at the arithmetic and parsing defects this code is
+prone to (see `AGENTS.md`):
+
+- **Integer overflow in size/offset arithmetic**: TGA RLE write offsets, the HDR
+  scanline size and the procedural mesh-generator vertex/index counts now compute
+  in 64-bit / `size_t` and are range-checked before they truncate. The TGA BGR
+  swap loop bound is 64-bit, so it can no longer wrap and silently skip the swap.
+- **Widened multiplication arithmetic**: the flagged `count * stride` products
+  (334 sites across the decoders, mesh generators and math core) are computed in
+  the wide type instead of being widened after a narrow 32-bit multiply, removing
+  the associated signed-overflow undefined behaviour.
+- **Parser input**: all numeric extraction in the Wavefront OBJ/MTL and Radiance
+  HDR loaders moved from `sscanf` to `strtof`/`strtol` with `endptr` checking, so
+  a malformed field is detectable rather than silently ignored.
+- **Uninitialized values**: zero the glTF accessor unpack buffer before
+  `cgltf_accessor_unpack_floats` (it may legitimately write fewer floats than
+  requested) and the HDR RLE `repeat` state.
+- **Memory safety**: explicit NULL guards around the Wavefront scene snapshot and
+  the group-list append.
+- **Control flow**: explicit `default:` cases on switches over non-enum values.
+- **Portability**: `#pragma once` replaced with include guards.
+- **Build**: `stb` is pinned to a commit hash instead of the moving `master` ref
+  so a release is reproducible.
+- Added the `cppcheck` and `clang-tidy` analysis lanes (`cmake/cppcheck.cmake`,
+  `tools/check_tidy.py`, `cppcheck.supp`) and `AGENTS.md`.
+
 ### v1.1.1
 
 Security and correctness fixes across parsers, math, and platform layers:

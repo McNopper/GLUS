@@ -69,12 +69,16 @@ GLUSvoid _glusImageGatherSamplePoints(GLUSint sampleIndex[4], GLUSfloat sampleWe
 
     // s axis sample point
 
-    if (pixelTexCoordCenter[0] > 0.5f && pixelTexCoord[0] < pixelTexCoordCenter[0])
+    // Neighbour samples are gated on the clamped pixel, not just on the texcoord
+    // heuristic: with a 1-pixel-wide image and s == 1.0 the heuristic alone picks
+    // the left neighbour and sampleIndex[1] becomes 0 - stride, an out-of-bounds
+    // read before the buffer.
+    if (samplePixel[0] > 0 && pixelTexCoordCenter[0] > 0.5f && pixelTexCoord[0] < pixelTexCoordCenter[0])
     {
         sampleIndex[1] = sampleIndex[0] - stride;
         sampleIndex[3] = -stride;
     }
-    else if (pixelTexCoordCenter[0] < (GLUSfloat)width - 0.5f && pixelTexCoord[0] > pixelTexCoordCenter[0])
+    else if (samplePixel[0] < width - 1 && pixelTexCoordCenter[0] < (GLUSfloat)width - 0.5f && pixelTexCoord[0] > pixelTexCoordCenter[0])
     {
         sampleIndex[1] = sampleIndex[0] + stride;
         sampleIndex[3] = stride;
@@ -87,11 +91,11 @@ GLUSvoid _glusImageGatherSamplePoints(GLUSint sampleIndex[4], GLUSfloat sampleWe
 
     // t axis sample point
 
-    if (pixelTexCoordCenter[1] > 0.5f && pixelTexCoord[1] < pixelTexCoordCenter[1])
+    if (samplePixel[1] > 0 && pixelTexCoordCenter[1] > 0.5f && pixelTexCoord[1] < pixelTexCoordCenter[1])
     {
         sampleIndex[2] = sampleIndex[0] - stride * width;
     }
-    else if (pixelTexCoordCenter[1] < (GLUSfloat)height - 0.5f && pixelTexCoord[1] > pixelTexCoordCenter[1])
+    else if (samplePixel[1] < height - 1 && pixelTexCoordCenter[1] < (GLUSfloat)height - 0.5f && pixelTexCoord[1] > pixelTexCoordCenter[1])
     {
         sampleIndex[2] = sampleIndex[0] + stride * width;
     }

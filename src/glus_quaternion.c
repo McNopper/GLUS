@@ -303,13 +303,13 @@ GLUSboolean GLUSAPIENTRY glusQuaternionGetEulerRzRxRyf(GLUSfloat angles[3], cons
 
     if (!(f20 == 0.0f && f22 == 0.0f) && !(f01 == 0.0f && f11 == 0.0f))
     {
-        angles[0] = glusMathRadToDegf(asinf(f21));
+        angles[0] = glusMathRadToDegf(asinf(glusMathClampf(f21, -1.0f, 1.0f)));
         angles[1] = glusMathRadToDegf(atan2f(-f20, f22));
         angles[2] = glusMathRadToDegf(atan2f(-f01, f11));
     }
     else if (!(f10 == 0.0f && f00 == 0.0f))
     {
-        angles[0] = glusMathRadToDegf(asinf(f21));
+        angles[0] = glusMathRadToDegf(asinf(glusMathClampf(f21, -1.0f, 1.0f)));
         angles[1] = 0.0f;
         angles[2] = glusMathRadToDegf(atan2f(f10, f00));
     }
@@ -341,13 +341,13 @@ GLUSboolean GLUSAPIENTRY glusQuaternionGetEulerRzRyRxf(GLUSfloat angles[3], cons
     if (!(f21 == 0.0f && f22 == 0.0f) && !(f10 == 0.0f && f00 == 0.0f))
     {
         angles[0] = glusMathRadToDegf(atan2f(f21, f22));
-        angles[1] = glusMathRadToDegf(asinf(-f20));
+        angles[1] = glusMathRadToDegf(asinf(glusMathClampf(-f20, -1.0f, 1.0f)));
         angles[2] = glusMathRadToDegf(atan2f(f10, f00));
     }
     else if (!(f01 == 0.0f && f11 == 0.0f))
     {
         angles[0] = glusMathRadToDegf(atan2f(f01, f11));
-        angles[1] = glusMathRadToDegf(asinf(-f20));
+        angles[1] = glusMathRadToDegf(asinf(glusMathClampf(-f20, -1.0f, 1.0f)));
         angles[2] = 0.0f;
     }
     else

@@ -160,7 +160,7 @@ GLUSboolean GLUSAPIENTRY glusImageCreateHdr(GLUShdrimage* hdrimage, GLUSint widt
 {
     GLUSint stride;
 
-    if (!hdrimage || width < 1 || height < 1 || depth < 1)
+    if (!hdrimage || width < 1 || height < 1 || depth < 1 || width > 65535 || height > 65535 || depth > 65535)
     {
         return GLUS_FALSE;
     }
@@ -251,7 +251,7 @@ GLUSboolean GLUSAPIENTRY glusImageLoadHdr(const GLUSchar* filename, GLUShdrimage
     //
 
     // Identifier
-    if (strncmp(buffer, "#?RADIANCE", 10))
+    if (strncmp(buffer, "#?RADIANCE", 10) != 0)
     {
         glusFileClose(file);
 
@@ -319,13 +319,32 @@ GLUSboolean GLUSAPIENTRY glusImageLoadHdr(const GLUSchar* filename, GLUShdrimage
 
     buffer[i] = '\0';
 
-    if (sscanf(buffer, "-Y %d +X %d", &height, &width) != 2)
+    // "-Y <rows> +X <columns>" is read field by field rather than with sscanf:
+    // strtol reports a failed conversion through endptr, which sscanf cannot.
+    // A failed field leaves the dimension at 0 and is rejected by the range
+    // check below.
+    height = 0;
+    width  = 0;
+
     {
-        glusFileClose(file);
+        const GLUSchar* cursor = buffer;
+        GLUSchar*       end   = 0;
 
-        glusImageDestroyHdr(hdrimage);
+        if (strncmp(cursor, "-Y", 2) == 0)
+        {
+            height = (GLUSint)strtol(cursor + 2, &end, 10);
+            cursor = end;
+        }
 
-        return GLUS_FALSE;
+        while (cursor && *cursor == ' ')
+        {
+            cursor++;
+        }
+
+        if (cursor && strncmp(cursor, "+X", 2) == 0)
+        {
+            width = (GLUSint)strtol(cursor + 2, &end, 10);
+        }
     }
 
     // Both dimensions are stored as GLUSushort, so they have to fit in.
@@ -355,7 +374,7 @@ GLUSboolean GLUSAPIENTRY glusImageLoadHdr(const GLUSchar* filename, GLUShdrimage
     }
 
     // Scanlines
-    scanline = (GLUSubyte*)glusMemoryMalloc(width * 4 * sizeof(GLUSubyte));
+    scanline = (GLUSubyte*)glusMemoryMalloc((size_t)width * 4 * sizeof(GLUSubyte));
 
     if (!scanline)
     {
@@ -388,8 +407,6 @@ GLUSboolean GLUSAPIENTRY glusImageLoadHdr(const GLUSchar* filename, GLUShdrimage
 
             return GLUS_FALSE;
         }
-
-        repeat = 0;
 
         // Examine value
         if (width < 32768 && (GLUSubyte)buffer[0] == 2 && (GLUSubyte)buffer[1] == 2 && (GLUSubyte)buffer[2] == (GLUSubyte)((width >> 8) & 0xFF) && (GLUSubyte)buffer[3] == (GLUSubyte)(width & 0xFF))
@@ -434,7 +451,7 @@ GLUSboolean GLUSAPIENTRY glusImageLoadHdr(const GLUSchar* filename, GLUShdrimage
                     return GLUS_FALSE;
                 }
 
-                glusImageConvertRGBE(rgb, &scanline[i * 4]);
+                glusImageConvertRGBE(rgb, &scanline[(ptrdiff_t)i * 4]);
 
                 hdrimage->data[(width * y + x) * 3 + 0] = rgb[0];
                 hdrimage->data[(width * y + x) * 3 + 1] = rgb[1];
@@ -461,7 +478,15 @@ GLUSboolean GLUSAPIENTRY glusImageLoadHdr(const GLUSchar* filename, GLUShdrimage
         {
             // Old RLE decoding
 
-            repeat = (GLUSint)(GLUSubyte)buffer[3] * factor;
+            // Computed in 64 bits and clamped to the image: with a stack of
+            // old-RLE markers factor reaches 2^24, and 255 * 2^24 overflows
+            // GLUSint - undefined behaviour in the decoder.
+            {
+                GLUSint64 wideRepeat = (GLUSint64)(GLUSubyte)buffer[3] * (GLUSint64)factor;
+                GLUSint64 maxRepeat  = (GLUSint64)width * (GLUSint64)height;
+
+                repeat = (GLUSint)(wideRepeat > maxRepeat ? maxRepeat : wideRepeat);
+            }
 
             rgbe[0] = prevRgbe[0];
             rgbe[1] = prevRgbe[1];
@@ -578,7 +603,7 @@ GLUSboolean GLUSAPIENTRY glusImageSaveHdr(const GLUSchar* filename, const GLUShd
     {
         for (x = 0; x < hdrimage->width; x++)
         {
-            glusImageConvertRGB(rgbe, &hdrimage->data[(y * hdrimage->width + x) * 3]);
+            glusImageConvertRGB(rgbe, &hdrimage->data[(ptrdiff_t)(y * hdrimage->width + x) * 3]);
 
             elementsWritten = fwrite(rgbe, 1, 4 * sizeof(GLUSubyte), file);
 
@@ -641,7 +666,15 @@ GLUSboolean GLUSAPIENTRY glusImageSampleHdr2D(GLUSfloat rgb[3], const GLUShdrima
 
     _glusImageGatherSamplePoints(sampleIndex, sampelWeight, st, hdrimage->width, hdrimage->height, stride);
 
-    for (i = 0; i < stride; i++)
+    // rgb is a documented 3-element result. Bound both the clear and the write
+    // loop: a GLUS_RGBA image has stride 4 and the loop used to run to 4, writing
+    // one float past the caller's array.
+    for (i = 0; i < 3; i++)
+    {
+        rgb[i] = 0.0f;
+    }
+
+    for (i = 0; i < stride && i < 3; i++)
     {
         rgb[i] = hdrimage->data[sampleIndex[0] + i] * sampelWeight[0] * sampelWeight[1];
         rgb[i] += hdrimage->data[sampleIndex[1] + i] * (1.0f - sampelWeight[0]) * sampelWeight[1];

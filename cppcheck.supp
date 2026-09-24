@@ -1,0 +1,30 @@
+# cppcheck suppressions
+#
+# Format: one suppression id per line (optionally id:file:line).
+# Keep this list short and justified. Prefer inline // cppcheck-suppress
+# comments for one-off, local suppressions over global entries here.
+
+# System/standard-library headers are not analysed; silence the advisory
+# that fires when cppcheck cannot find them.
+missingIncludeSystem
+
+# Informational messages produced by cppcheck itself, not code findings.
+checkersReport
+
+# Do not fail when a suppression in this file matches nothing.
+unmatchedSuppression
+
+# cross-configuration API variants: glusProgramCreateFromSource and
+# glusProgramBuildFromSource are declared with 2 shader sources in
+# GLUS/glus_program_es.h and 6 in GLUS/glus_program.h. The two headers are
+# mutually exclusive (OpenGL ES vs desktop), so cppcheck - which sees both -
+# reports an argument-order mismatch that cannot occur in any real build.
+funcArgOrderDifferent
+
+# GLUS is a LIBRARY: its public API is consumed out of tree (by the example
+# projects and by third-party applications), so a whole class of exported
+# glus* entry points has no caller inside this repository. Reporting them as
+# unused would bury real dead-code findings under the entire public surface.
+# Private helpers are `static` and stay covered by the compiler's
+# -Wunused-function.
+unusedFunction

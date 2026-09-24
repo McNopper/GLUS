@@ -10,7 +10,18 @@
 
 cmake_minimum_required(VERSION 3.14)
 
-project(GLUS VERSION 1.1.1)
+project(GLUS VERSION 1.1.2)
+
+# Build policy + static analysis. Registered ONLY when GLUS is the top-level
+# project: the example projects vendor GLUS through add_subdirectory() and
+# FetchContent, and a second `cppcheck` custom target would make CMake fail
+# that build outright. None of this is required to build GLUS - with the tools
+# absent and every option at its default the build is unchanged.
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+	list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake)
+	include(cppcheck)
+	include(warnings)
+endif()
 
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 	# Mac OS X
@@ -159,6 +170,13 @@ ELSE()
 ENDIF()
 
 add_library(GLUS ${C_FILES} ${H_FILES})
+
+# No-op at the default settings; raises the level and/or makes it fatal when
+# ENABLE_STRICT_WARNINGS / ENABLE_WERROR are turned on. PRIVATE, so consumers
+# of GLUS never inherit these flags.
+if(COMMAND project_enable_warnings)
+	project_enable_warnings(GLUS)
+endif()
 target_include_directories (GLUS PUBLIC ${GLUS_SOURCE_DIR}/src)
 
 # Desktop OpenGL needs GLEW and GLFW. When GLUS is built standalone these are
@@ -187,21 +205,30 @@ IF(NOT (${OpenGL} MATCHES "ES"))
 		set(glew-cmake_BUILD_STATIC ON CACHE BOOL "" FORCE)
 		set(ONLY_LIBS ON CACHE BOOL "" FORCE)
 
+		# glew-cmake still declares cmake_minimum_required(VERSION 2.8.12).
+		# CMake 4 refuses anything below 3.5 and warns below 3.10, so it is
+		# rewritten before the project is configured. The single-argument
+		# FetchContent_Populate() that used to do this is deprecated (CMP0169)
+		# and becomes an error with CMake >= 3.30, so the patch now runs through
+		# PATCH_COMMAND - which is also how the example projects fetch this
+		# dependency. Every replacement below is idempotent (the replacement
+		# text does not contain its own search text), so re-running the patch on
+		# each configure is safe.
+		set(GLEW_PATCH_SCRIPT ${CMAKE_CURRENT_BINARY_DIR}/patch_glew.cmake)
+		file(WRITE ${GLEW_PATCH_SCRIPT}
+			"file(READ \"\${GLEW_CMAKELISTS}\" GLEW_CMAKE_CONTENT)\n"
+			"string(REPLACE \"cmake_minimum_required(VERSION 2.8.12)\" \"cmake_minimum_required(VERSION 3.10)\" GLEW_CMAKE_CONTENT \"\${GLEW_CMAKE_CONTENT}\")\n"
+			"file(WRITE \"\${GLEW_CMAKELISTS}\" \"\${GLEW_CMAKE_CONTENT}\")\n"
+		)
+
 		FetchContent_Declare(
 			glew
 			GIT_REPOSITORY https://github.com/Perlmint/glew-cmake.git
 			GIT_TAG        glew-cmake-2.2.0
+			PATCH_COMMAND ${CMAKE_COMMAND} -DGLEW_CMAKELISTS=<SOURCE_DIR>/CMakeLists.txt -P ${GLEW_PATCH_SCRIPT}
 		)
 
-		FetchContent_GetProperties(glew)
-		if(NOT glew_POPULATED)
-			FetchContent_Populate(glew)
-			# Patch the CMakeLists.txt to use a modern CMake version
-			file(READ "${glew_SOURCE_DIR}/CMakeLists.txt" GLEW_CMAKE_CONTENT)
-			string(REPLACE "cmake_minimum_required(VERSION 2.8.12)" "cmake_minimum_required(VERSION 3.5)" GLEW_CMAKE_CONTENT "${GLEW_CMAKE_CONTENT}")
-			file(WRITE "${glew_SOURCE_DIR}/CMakeLists.txt" "${GLEW_CMAKE_CONTENT}")
-			add_subdirectory(${glew_SOURCE_DIR} ${glew_BINARY_DIR})
-		endif()
+		FetchContent_MakeAvailable(glew)
 
 		target_include_directories(GLUS PUBLIC ${glew_SOURCE_DIR}/include)
 	endif()
@@ -222,7 +249,9 @@ IF(NOT (${OpenGL} MATCHES "ES"))
 	FetchContent_Declare(
 		stb
 		GIT_REPOSITORY https://github.com/nothings/stb.git
-		GIT_TAG        master
+		# Pinned to a commit hash rather than the moving `master` ref: a release
+		# has to be reproducible, and stb_image parses untrusted input here.
+		GIT_TAG        2c980bb59875b0d32144a71867fbdebb2f77cd20
 	)
 	FetchContent_MakeAvailable(stb)
 

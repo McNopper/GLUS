@@ -317,19 +317,19 @@ static GLUSvoid gltfApplySampler(cgltf_sampler* sampler)
     }
     if (sampler->min_filter)
     {
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, (GLenum)sampler->min_filter);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, (GLint)sampler->min_filter);
     }
     if (sampler->mag_filter)
     {
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, (GLenum)sampler->mag_filter);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, (GLint)sampler->mag_filter);
     }
     if (sampler->wrap_s)
     {
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, (GLenum)sampler->wrap_s);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, (GLint)sampler->wrap_s);
     }
     if (sampler->wrap_t)
     {
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, (GLenum)sampler->wrap_t);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, (GLint)sampler->wrap_t);
     }
 }
 
@@ -401,7 +401,8 @@ static GLint gltfTypeComponents(cgltf_type t)
     case cgltf_type_vec3:
         return 3;
     case cgltf_type_vec4:
-        return 4;
+    // A 2x2 matrix is 4 scalars, exactly like vec4 - this is deliberate, not a
+    // copy/paste slip.
     case cgltf_type_mat2:
         return 4;
     case cgltf_type_mat3:
@@ -452,6 +453,11 @@ static GLfloat* gltfReadAccessorFloats(cgltf_accessor* acc, GLint components)
         free(out);
         return NULL;
     }
+    /* cgltf_accessor_unpack_floats returns how many floats it actually wrote and
+     * is free to write fewer than requested (sparse or short accessors). Zero the
+     * buffer first so the read below can never pick up uninitialized data from
+     * the tail that was never filled. */
+    memset(tmp, 0, (size_t)n * (size_t)native * sizeof(GLfloat));
     cgltf_accessor_unpack_floats(acc, tmp, (cgltf_size)n * (cgltf_size)native);
     /* Never copy more than the destination stride, otherwise a wider native
      * component count would write past the end of the output. */
@@ -1237,8 +1243,8 @@ static GLUSboolean gltfBuildSkins(GLUSgltfScene* scene)
 
             /* A joint has to reference a node of this asset. */
             gs->jointNodeIndices[ji] = (jni >= 0 && jni < scene->nodeCount) ? jni : -1;
-            glusMatrix4x4Identityf(&gs->inverseBindMatrices[ji * 16]);
-            glusMatrix4x4Identityf(&gs->jointMatrices[ji * 16]);
+            glusMatrix4x4Identityf(&gs->inverseBindMatrices[(ptrdiff_t)ji * 16]);
+            glusMatrix4x4Identityf(&gs->jointMatrices[(ptrdiff_t)ji * 16]);
         }
         if (cs->inverse_bind_matrices)
         {
@@ -1556,7 +1562,7 @@ static GLUSvoid gltfComputeJointMatrices(GLUSgltfScene* scene)
             GLint jni = gs->jointNodeIndices[ji];
             if (jni >= 0 && jni < scene->nodeCount)
             {
-                glusMatrix4x4Multiplyf(&gs->jointMatrices[ji * 16], scene->nodes[jni].worldMatrix, &gs->inverseBindMatrices[ji * 16]);
+                glusMatrix4x4Multiplyf(&gs->jointMatrices[(ptrdiff_t)ji * 16], scene->nodes[jni].worldMatrix, &gs->inverseBindMatrices[(ptrdiff_t)ji * 16]);
             }
         }
     }

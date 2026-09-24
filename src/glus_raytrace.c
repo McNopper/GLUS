@@ -50,7 +50,9 @@ GLUSboolean GLUSAPIENTRY glusRaytracePerspectivef(GLUSfloat* directionBuffer, co
     for (i = 0; i < width * height; i++)
     {
         directionBuffer[i * (3 + padding) + 0] = -xExtend + xStep * 0.5f + xStep * (GLUSfloat)(i % width);
-        directionBuffer[i * (3 + padding) + 1] = -yExtend + yStep * 0.5f + yStep * (GLUSfloat)(i / width);
+        // The row index is deliberately a truncating integer division; a float
+        // division here would address fractional rows.
+        directionBuffer[i * (3 + padding) + 1] = -yExtend + yStep * 0.5f + yStep * (GLUSfloat)(i / width); // NOLINT(bugprone-integer-division)
         directionBuffer[i * (3 + padding) + 2] = -1.0f;
 
         for (k = 0; k < padding; k++)
@@ -58,7 +60,7 @@ GLUSboolean GLUSAPIENTRY glusRaytracePerspectivef(GLUSfloat* directionBuffer, co
             directionBuffer[i * (3 + padding) + 3 + k] = 0.0f;
         }
 
-        glusVector3Normalizef(&directionBuffer[i * (3 + padding)]);
+        glusVector3Normalizef(&directionBuffer[(ptrdiff_t)i * (3 + padding)]);
     }
 
     return GLUS_TRUE;
@@ -107,7 +109,7 @@ GLUSvoid GLUSAPIENTRY glusRaytraceLookAtf(GLUSfloat* positionBuffer, GLUSfloat* 
 
         if (directionBuffer && originDirectionBuffer)
         {
-            glusMatrix3x3MultiplyVector3f(&directionBuffer[i * (3 + padding)], rotation, &originDirectionBuffer[i * (3 + padding)]);
+            glusMatrix3x3MultiplyVector3f(&directionBuffer[(ptrdiff_t)i * (3 + padding)], rotation, &originDirectionBuffer[(ptrdiff_t)i * (3 + padding)]);
 
             for (k = 0; k < padding; k++)
             {

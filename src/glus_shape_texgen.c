@@ -41,7 +41,7 @@ GLUSboolean GLUSAPIENTRY glusShapeTexGenByAxesf(GLUSshape* shape, const GLUSfloa
         shape->texCoords = 0;
     }
 
-    shape->texCoords = (GLUSfloat*)glusMemoryMalloc(2 * shape->numberVertices * sizeof(GLUSfloat));
+    shape->texCoords = (GLUSfloat*)glusMemoryMalloc((size_t)2 * shape->numberVertices * sizeof(GLUSfloat));
 
     if (!shape->texCoords)
     {
@@ -86,7 +86,7 @@ GLUSboolean GLUSAPIENTRY glusShapeTexGenByPlanesf(GLUSshape* shape, const GLUSfl
         shape->texCoords = 0;
     }
 
-    shape->texCoords = (GLUSfloat*)glusMemoryMalloc(2 * shape->numberVertices * sizeof(GLUSfloat));
+    shape->texCoords = (GLUSfloat*)glusMemoryMalloc((size_t)2 * shape->numberVertices * sizeof(GLUSfloat));
 
     if (!shape->texCoords)
     {
@@ -95,8 +95,8 @@ GLUSboolean GLUSAPIENTRY glusShapeTexGenByPlanesf(GLUSshape* shape, const GLUSfl
 
     for (i = 0; i < shape->numberVertices; i++)
     {
-        shape->texCoords[2 * i + 0] = glusPlaneDistancePoint4f(sPlane, &shape->vertices[4 * i]) * sSize + sOffset;
-        shape->texCoords[2 * i + 1] = glusPlaneDistancePoint4f(tPlane, &shape->vertices[4 * i]) * tSize + tOffset;
+        shape->texCoords[2 * i + 0] = glusPlaneDistancePoint4f(sPlane, &shape->vertices[(size_t)4 * i]) * sSize + sOffset;
+        shape->texCoords[2 * i + 1] = glusPlaneDistancePoint4f(tPlane, &shape->vertices[(size_t)4 * i]) * tSize + tOffset;
     }
 
     // The interleaved buffer is the one uploaded to the GPU, so it has to be refreshed as well.

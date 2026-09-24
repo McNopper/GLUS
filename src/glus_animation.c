@@ -75,14 +75,14 @@ GLUSvoid GLUSAPIENTRY glusAnimationSampleVec3f(GLUSfloat result[3], const GLUSfl
     /* Clamp after last keyframe. */
     if (t >= times[count - 1])
     {
-        glusVector3Copyf(result, values + (count - 1) * stride + vertexOffset);
+        glusVector3Copyf(result, values + (ptrdiff_t)(count - 1) * stride + vertexOffset);
         return;
     }
 
     i = animationFindSegment(times, count, t);
 
-    v0 = values + i * stride + vertexOffset;
-    v1 = values + (i + 1) * stride + vertexOffset;
+    v0 = values + (ptrdiff_t)i * stride + vertexOffset;
+    v1 = values + (ptrdiff_t)(i + 1) * stride + vertexOffset;
 
     if (interpolation == GLUS_ANIMATION_STEP)
     {
@@ -100,8 +100,8 @@ GLUSvoid GLUSAPIENTRY glusAnimationSampleVec3f(GLUSfloat result[3], const GLUSfl
 
     /* CUBICSPLINE: cubic Hermite spline per component. */
     delta = times[i + 1] - times[i];
-    m0    = values + i * stride + 6;   /* outTangent of keyframe i   */
-    m1    = values + (i + 1) * stride; /* inTangent of keyframe i+1  */
+    m0    = values + (ptrdiff_t)i * stride + 6;   /* outTangent of keyframe i   */
+    m1    = values + (ptrdiff_t)(i + 1) * stride; /* inTangent of keyframe i+1  */
 
     for (j = 0; j < 3; j++)
     {
@@ -141,14 +141,14 @@ GLUSvoid GLUSAPIENTRY glusAnimationSampleQuaternionf(GLUSfloat result[4], const 
     /* Clamp after last keyframe. */
     if (t >= times[count - 1])
     {
-        glusQuaternionCopyf(result, values + (count - 1) * stride + vertexOffset);
+        glusQuaternionCopyf(result, values + (ptrdiff_t)(count - 1) * stride + vertexOffset);
         return;
     }
 
     i = animationFindSegment(times, count, t);
 
-    v0 = values + i * stride + vertexOffset;
-    v1 = values + (i + 1) * stride + vertexOffset;
+    v0 = values + (ptrdiff_t)i * stride + vertexOffset;
+    v1 = values + (ptrdiff_t)(i + 1) * stride + vertexOffset;
 
     if (interpolation == GLUS_ANIMATION_STEP)
     {
@@ -180,8 +180,8 @@ GLUSvoid GLUSAPIENTRY glusAnimationSampleQuaternionf(GLUSfloat result[4], const 
 
     /* CUBICSPLINE: cubic Hermite spline per component, then normalize. */
     delta = times[i + 1] - times[i];
-    m0    = values + i * stride + 8;   /* outTangent of keyframe i   */
-    m1    = values + (i + 1) * stride; /* inTangent of keyframe i+1  */
+    m0    = values + (ptrdiff_t)i * stride + 8;   /* outTangent of keyframe i   */
+    m1    = values + (ptrdiff_t)(i + 1) * stride; /* inTangent of keyframe i+1  */
 
     for (j = 0; j < 4; j++)
     {
