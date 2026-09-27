@@ -278,6 +278,13 @@ extern "C"
 #include "../GLUS/glus_file_binary.h"
 
     //
+    // Animation and spherical harmonics
+    //
+
+#include "../GLUS/glus_animation.h"
+#include "../GLUS/glus_sh.h"
+
+    //
     // Padding
     //
 

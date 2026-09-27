@@ -153,9 +153,6 @@ static int32_t onInputEvent(struct android_app* app, AInputEvent* event)
 
 void android_main(struct android_app* app)
 {
-    // Make sure glue isn't stripped.
-    app_dummy();
-
     if (!app)
     {
         return;
@@ -178,7 +175,7 @@ void android_main(struct android_app* app)
         int                         events;
         struct android_poll_source* androidPollSource;
 
-        while ((ident = ALooper_pollAll(0, NULL, &events, (void**)&androidPollSource)) >= 0)
+        while ((ident = ALooper_pollOnce(0, NULL, &events, (void**)&androidPollSource)) >= 0)
         {
             if (androidPollSource != NULL)
             {
@@ -214,7 +211,7 @@ GLUSvoid _glusOsPollEvents()
     int                         events;
     struct android_poll_source* androidPollSource;
 
-    while ((ident = ALooper_pollAll(0, NULL, &events, (void**)&androidPollSource)) >= 0)
+    while ((ident = ALooper_pollOnce(0, NULL, &events, (void**)&androidPollSource)) >= 0)
     {
         if (androidPollSource != NULL)
         {

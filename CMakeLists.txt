@@ -88,12 +88,15 @@ ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 		
 ENDIF()
 		
-# Files only valid for desktop OpenGL
+# Files only valid for desktop OpenGL. glus_ibl.c needs
+# GL_TEXTURE_CUBE_MAP_ARRAY, which no OpenGL ES version provides.
 list(APPEND ONLY_GL_C_FILES		${GLUS_SOURCE_DIR}/src/glus_window_glfw.c
 								${GLUS_SOURCE_DIR}/src/glus_programpipeline.c
 								${GLUS_SOURCE_DIR}/src/glus_program.c
 								${GLUS_SOURCE_DIR}/src/glus_shape_adjacency.c
+								${GLUS_SOURCE_DIR}/src/glus_time.c
 								${GLUS_SOURCE_DIR}/src/glus_gltf.c
+								${GLUS_SOURCE_DIR}/src/glus_ibl.c
 )
 
 # Files currently not used

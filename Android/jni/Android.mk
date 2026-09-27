@@ -24,6 +24,12 @@ GL_FILES := $(LOCAL_PATH)/../../src/glus_window_glfw.c
 GL_FILES += $(LOCAL_PATH)/../../src/glus_programpipeline.c
 GL_FILES += $(LOCAL_PATH)/../../src/glus_program.c
 GL_FILES += $(LOCAL_PATH)/../../src/glus_shape_adjacency.c
+GL_FILES += $(LOCAL_PATH)/../../src/glus_time.c
+# The glTF loader needs cgltf.h and stb_image.h, which this NDK build does not
+# vendor, and the IBL prefilter uses GL_TEXTURE_CUBE_MAP_ARRAY, which no OpenGL
+# ES version provides. Keep in sync with ONLY_GL_C_FILES in CMakeLists.txt.
+GL_FILES += $(LOCAL_PATH)/../../src/glus_gltf.c
+GL_FILES += $(LOCAL_PATH)/../../src/glus_ibl.c
 
 NOT_USED_FILES := $(LOCAL_PATH)/../../src/glus_memory_nodm.c
 
