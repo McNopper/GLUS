@@ -71,7 +71,17 @@ jobs:
           }
           $libs | Copy-Item -Destination "$stage/lib/"
           foreach ($d in 'GL', 'GLES2', 'GLES3', 'GLUS', 'VG') { Copy-Item -Recurse "src/$d" "$stage/include/" }
-          Copy-Item -Recurse build/_deps/glew-src/include/* "$stage/include/"
+          # glew ships include/GL and include/KHR; its GL directory collides
+          # with the GLUS umbrella headers already staged there, and
+          # Copy-Item -Recurse does not merge into an existing directory.
+          foreach ($sub in Get-ChildItem build/_deps/glew-src/include) {
+            if ($sub.PSIsContainer) {
+              New-Item -ItemType Directory -Force "$stage/include/$($sub.Name)" | Out-Null
+              Copy-Item -Recurse "$($sub.FullName)/*" "$stage/include/$($sub.Name)/"
+            } else {
+              Copy-Item $sub.FullName "$stage/include/"
+            }
+          }
           Copy-Item -Recurse build/_deps/glfw-src/include/GLFW "$stage/include/"
           Copy-Item -Recurse shader "$stage/shader"
           Copy-Item LICENSE, THIRD-PARTY.md, README.md "$stage/"
