@@ -1,0 +1,110 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: ${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, platform: windows-x64 }
+          - { os: ubuntu-latest, platform: linux-x64 }
+          - { os: macos-latest, platform: macos-arm64 }
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libx11-dev \
+            libxrandr-dev \
+            libxinerama-dev \
+            libxcursor-dev \
+            libxi-dev \
+            libwayland-dev \
+            libxkbcommon-dev \
+            libgl1-mesa-dev
+
+      # Same build as the CI workflow: the Visual Studio generator sets up
+      # its own environment on Windows; Ninja is used on the Unix runners.
+      - name: Configure (Windows)
+        if: runner.os == 'Windows'
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+      - name: Configure (Linux / macOS)
+        if: runner.os != 'Windows'
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      # Binary SDK drop: the GLUS static library plus the glew / GLFW
+      # dependencies the public umbrella header includes and links against,
+      # the public header tree and the glTF PBR / IBL shaders shipped with
+      # the library (GLUS_SHADER_DIR).
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $name = "GLUS-$($env:GITHUB_REF_NAME.TrimStart('v'))-${{ matrix.platform }}"
+          $stage = "stage/$name"
+          New-Item -ItemType Directory -Force "$stage/lib", "$stage/include", 'dist' | Out-Null
+          $libs = @('GLUS.lib', 'glew.lib', 'glfw3.lib') | ForEach-Object {
+            $f = Get-ChildItem build -Recurse -Filter $_ -File | Select-Object -First 1
+            if (-not $f) { throw "$_ not found in the build tree" }
+            $f
+          }
+          $libs | Copy-Item -Destination "$stage/lib/"
+          foreach ($d in 'GL', 'GLES2', 'GLES3', 'GLUS', 'VG') { Copy-Item -Recurse "src/$d" "$stage/include/" }
+          Copy-Item -Recurse build/_deps/glew-src/include/* "$stage/include/"
+          Copy-Item -Recurse build/_deps/glfw-src/include/GLFW "$stage/include/"
+          Copy-Item -Recurse shader "$stage/shader"
+          Copy-Item LICENSE, THIRD-PARTY.md, README.md "$stage/"
+          Push-Location $stage
+          cmake -E tar cfv "../../dist/$name.zip" --format=zip .
+          Pop-Location
+
+      - name: Package (Linux / macOS)
+        if: runner.os != 'Windows'
+        run: |
+          set -e
+          name="GLUS-${GITHUB_REF_NAME#v}-${{ matrix.platform }}"
+          stage="stage/$name"
+          mkdir -p "$stage/lib" "$stage/include" dist
+          for lib in libGLUS.a libglew.a libglfw3.a; do
+            f="$(find build -name "$lib" | head -1)"
+            [ -n "$f" ] || { echo "$lib not found in the build tree"; exit 1; }
+            cp "$f" "$stage/lib/"
+          done
+          for d in GL GLES2 GLES3 GLUS VG; do cp -r "src/$d" "$stage/include/"; done
+          cp -r build/_deps/glew-src/include/* "$stage/include/"
+          cp -r build/_deps/glfw-src/include/GLFW "$stage/include/"
+          cp -r shader "$stage/shader"
+          cp LICENSE THIRD-PARTY.md README.md "$stage/"
+          ( cd "$stage" && cmake -E tar cfz "../../dist/$name.tar.gz" --format=gnutar . )
+
+      # The release entry is normally created together with the tag; the
+      # fallback create keeps a bare-tag push self-sufficient.
+      - name: Attach archives to the GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --generate-notes
+          gh release upload "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --clobber
