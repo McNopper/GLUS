@@ -8,6 +8,26 @@ shader utilities and more. GLUS lives in its own repository and is used by the
 
 ## Changelog
 
+### v1.1.3
+
+Platform build fixes and CI; no library behaviour changes.
+
+- **Android NDK build restored**: the build broke when the desktop-only modules
+  moved into `src/`. `glus_gltf.c`, `glus_ibl.c` and `glus_time.c` are now
+  excluded from the ES builds in both `Android.mk` and the CMake source list,
+  the ES umbrella headers cover `glus_animation.h` and `glus_sh.h`,
+  `APP_PLATFORM` is android-21 and the native-app glue uses `ALooper_pollOnce`
+  (`ALooper_pollAll` was removed from current NDK headers). Verified with NDK
+  r30 on arm64-v8a and armeabi-v7a, ES2 / ES3 / ES3.1.
+- **macOS consumers link again**: glew-cmake 2.2.0 links the Carbon-era `AGL`
+  framework, removed from modern macOS SDKs, so every executable linking glew
+  failed on a current Mac. The FetchContent patch now drops the AGL link; GL
+  symbols resolve through the OpenGL framework, which glew already links.
+- **CI and releases**: GitHub Actions build workflow for Windows, Linux and
+  macOS on every push and pull request, and a release workflow that attaches
+  the binary SDK drops (static library, headers, shaders) to each tagged
+  GitHub release.
+
 ### v1.1.2
 
 Second correctness pass, aimed at the arithmetic and parsing defects this code is
