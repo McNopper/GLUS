@@ -1,6 +1,8 @@
 GLUS - Modern OpenGL Utilities
 ===============================
 
+[![Build](https://github.com/McNopper/GLUS/actions/workflows/build.yml/badge.svg)](https://github.com/McNopper/GLUS/actions/workflows/build.yml)
+
 GLUS is a cross-platform utility library for OpenGL, OpenGL ES and OpenVG.
 It provides window/context creation, math helpers, image and model loading,
 shader utilities and more. GLUS lives in its own repository and is used by the
