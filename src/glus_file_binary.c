@@ -84,7 +84,7 @@ GLUSboolean GLUSAPIENTRY glusFileLoadBinary(const GLUSchar* filename, GLUSbinary
         return GLUS_FALSE;
     }
 
-    memset(binaryfile->binary, 0, (size_t)binaryfile->length);
+    memset(binaryfile->binary, 0, (size_t)binaryfile->length + 1);
 
     // rewind() reports no error; fseek does.
     if (fseek(f, 0, SEEK_SET) != 0)

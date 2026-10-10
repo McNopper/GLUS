@@ -378,8 +378,6 @@ GLUSboolean GLUSAPIENTRY glusImageLoadHdr(const GLUSchar* filename, GLUShdrimage
 
     if (!scanline)
     {
-        glusMemoryFree(scanline);
-
         glusFileClose(file);
 
         glusImageDestroyHdr(hdrimage);

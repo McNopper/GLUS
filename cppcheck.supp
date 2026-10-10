@@ -28,3 +28,11 @@ funcArgOrderDifferent
 # Private helpers are `static` and stay covered by the compiler's
 # -Wunused-function.
 unusedFunction
+
+# cppcheck's C parser bails on the vendored glew.h: PFNGLCLIENTWAITSYNCAPPLEPROC
+# typedefs a parameter named GLsync, shadowing the GLsync typedef. The header is
+# unmodified third-party code (glew-cmake 2.2.0, fetched at configure time), so
+# it is not ours to fix - and the -i exclusion of the build tree does not cover
+# header findings surfaced through our own translation units. Scoped to glew.h
+# so real parse errors in our code stay fatal.
+syntaxError:*glew.h

@@ -259,25 +259,323 @@ GLUSvoid GLUSAPIENTRY glusWindowDestroy(GLUSvoid)
     g_initdone = GLUS_FALSE;
 }
 
-GLUSboolean GLUSAPIENTRY glusWindowCreate(const GLUSchar* title, const GLUSint width, const GLUSint height, const GLUSboolean fullscreen, const GLUSboolean noResize, const EGLint* configAttribList, const EGLint* contextAttribList, const EGLint* surfaceAttribList)
+// Applies one validated EGL_*_SIZE hint; EGL_DONT_CARE keeps the GLFW default.
+// Returns NULL on success, or errorMessage for the caller to report.
+static const GLUSchar* glusWindowApplySizeHint(const int glfwHint, const EGLint value, const GLUSchar* errorMessage)
 {
-    int samples = 0;
+    if (value != EGL_DONT_CARE && value >= 0)
+    {
+        glfwWindowHint(glfwHint, value);
 
+        return 0;
+    }
+
+    if (value != EGL_DONT_CARE)
+    {
+        return errorMessage;
+    }
+
+    return 0;
+}
+
+// Translates the EGL config attribute list into GLFW window hints. Returns NULL
+// on success, or the failure reason; the caller owns the GLFW lifecycle.
+static const GLUSchar* glusWindowApplyConfigHints(const EGLint* configAttribList, int* samples)
+{
     GLUSboolean eglRenderableTypeProcessed = GLUS_FALSE;
     GLUSboolean eglSampleBuffersProcessed  = GLUS_FALSE;
     GLUSboolean eglSamplesProcessed        = GLUS_FALSE;
+
+    const EGLint* walker;
+
+    *samples = 0;
+
+    walker = configAttribList;
+    while (walker && *walker != EGL_NONE)
+    {
+        switch (*walker)
+        {
+        case EGL_RENDERABLE_TYPE:
+            if (*(walker + 1) == EGL_OPENGL_BIT)
+            {
+                eglRenderableTypeProcessed = GLUS_TRUE;
+            }
+            else
+            {
+                return "EGL_RENDERABLE_TYPE has to be EGL_OPENGL_BIT";
+            }
+            break;
+        case EGL_RED_SIZE:
+        {
+            const GLUSchar* error = glusWindowApplySizeHint(GLFW_RED_BITS, *(walker + 1), "EGL_RED_SIZE has to be >= 0");
+
+            if (error)
+            {
+                return error;
+            }
+        }
+        break;
+        case EGL_GREEN_SIZE:
+        {
+            const GLUSchar* error = glusWindowApplySizeHint(GLFW_GREEN_BITS, *(walker + 1), "EGL_GREEN_SIZE has to be >= 0");
+
+            if (error)
+            {
+                return error;
+            }
+        }
+        break;
+        case EGL_BLUE_SIZE:
+        {
+            const GLUSchar* error = glusWindowApplySizeHint(GLFW_BLUE_BITS, *(walker + 1), "EGL_BLUE_SIZE has to be >= 0");
+
+            if (error)
+            {
+                return error;
+            }
+        }
+        break;
+        case EGL_DEPTH_SIZE:
+        {
+            const GLUSchar* error = glusWindowApplySizeHint(GLFW_DEPTH_BITS, *(walker + 1), "EGL_DEPTH_SIZE has to be >= 0");
+
+            if (error)
+            {
+                return error;
+            }
+        }
+        break;
+        case EGL_STENCIL_SIZE:
+        {
+            const GLUSchar* error = glusWindowApplySizeHint(GLFW_STENCIL_BITS, *(walker + 1), "EGL_STENCIL_SIZE has to be >= 0");
+
+            if (error)
+            {
+                return error;
+            }
+        }
+        break;
+        case EGL_ALPHA_SIZE:
+        {
+            const GLUSchar* error = glusWindowApplySizeHint(GLFW_ALPHA_BITS, *(walker + 1), "EGL_ALPHA_SIZE has to be >= 0");
+
+            if (error)
+            {
+                return error;
+            }
+        }
+        break;
+        case EGL_SAMPLE_BUFFERS:
+            if (*(walker + 1) >= 0 && *(walker + 1) <= 1)
+            {
+                if (eglSamplesProcessed && *(walker + 1) == 0)
+                {
+                    *samples = 0;
+                }
+                else if (!eglSamplesProcessed)
+                {
+                    *samples = *(walker + 1);
+                }
+
+                eglSampleBuffersProcessed = GLUS_TRUE;
+            }
+            else
+            {
+                return "EGL_SAMPLE_BUFFERS has to be >= 0 and <= 1";
+            }
+            break;
+        case EGL_SAMPLES:
+            if (*(walker + 1) >= 0)
+            {
+                if ((eglSampleBuffersProcessed && *samples == 1) || !eglSampleBuffersProcessed)
+                {
+                    *samples = *(walker + 1);
+                }
+
+                eglSamplesProcessed = GLUS_TRUE;
+            }
+            else
+            {
+                return "EGL_SAMPLES has to be >= 0";
+            }
+            break;
+        default:
+            break; // Unrecognized attribute; ignored.
+        }
+
+        walker += 2;
+    }
+
+    if (!eglRenderableTypeProcessed)
+    {
+        return "EGL_RENDERABLE_TYPE not specified";
+    }
+
+    if ((eglSampleBuffersProcessed && !eglSamplesProcessed) || (!eglSampleBuffersProcessed && eglSamplesProcessed))
+    {
+        return "EGL_SAMPLE_BUFFERS and EGL_SAMPLES has to be specified";
+    }
+
+    glfwWindowHint(GLFW_SAMPLES, *samples);
+    glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
+
+    return 0;
+}
+
+// Translates the EGL context attribute list into GLFW context hints and reports
+// the negotiated version/profile back. Returns NULL on success, or the failure
+// reason; the caller owns the GLFW lifecycle.
+static const GLUSchar* glusWindowApplyContextHints(const EGLint* contextAttribList, int* major, int* minor, int* profile, int* debug)
+{
+    GLUSboolean eglContextMajorVersionProcessed = GLUS_FALSE;
+    GLUSboolean eglContextMinorVersionProcessed = GLUS_FALSE;
+
+    const EGLint* walker;
+
+    *major   = 3;
+    *minor   = 2;
+    *profile = GLFW_OPENGL_CORE_PROFILE;
+    *debug   = 0;
+
+    walker = contextAttribList;
+    while (walker && *walker != EGL_NONE)
+    {
+        switch (*walker)
+        {
+        case EGL_CONTEXT_MAJOR_VERSION:
+            if (*(walker + 1) >= 1)
+            {
+                *major = *(walker + 1);
+
+                glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, *major);
+
+                eglContextMajorVersionProcessed = GLUS_TRUE;
+            }
+            else
+            {
+                return "EGL_CONTEXT_MAJOR_VERSION has to be >= 1";
+            }
+            break;
+        case EGL_CONTEXT_MINOR_VERSION:
+            if (*(walker + 1) >= 0)
+            {
+                *minor = *(walker + 1);
+
+                glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, *minor);
+
+                eglContextMinorVersionProcessed = GLUS_TRUE;
+            }
+            else
+            {
+                return "EGL_CONTEXT_MINOR_VERSION has to be >= 0";
+            }
+            break;
+        case EGL_CONTEXT_OPENGL_FORWARD_COMPATIBLE:
+            if (*(walker + 1) == EGL_TRUE || *(walker + 1) == EGL_FALSE)
+            {
+                glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, *(walker + 1));
+            }
+            else
+            {
+                return "EGL_CONTEXT_OPENGL_FORWARD_COMPATIBLE is invalid";
+            }
+            break;
+        case EGL_CONTEXT_OPENGL_PROFILE_MASK:
+            if (*(walker + 1) == EGL_CONTEXT_OPENGL_CORE_PROFILE_BIT)
+            {
+                *profile = GLFW_OPENGL_CORE_PROFILE;
+            }
+            else if (*(walker + 1) == EGL_CONTEXT_OPENGL_COMPATIBILITY_PROFILE_BIT)
+            {
+                *profile = GLFW_OPENGL_COMPAT_PROFILE;
+            }
+            else
+            {
+                return "EGL_CONTEXT_OPENGL_PROFILE_MASK is invalid";
+            }
+            break;
+        case EGL_CONTEXT_OPENGL_DEBUG:
+            if (*(walker + 1) == EGL_TRUE || *(walker + 1) == EGL_FALSE)
+            {
+                *debug = *(walker + 1);
+
+                glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, *debug);
+            }
+            else
+            {
+                return "EGL_CONTEXT_OPENGL_DEBUG is invalid";
+            }
+            break;
+        default:
+            break; // Unrecognized attribute; ignored.
+        }
+
+        walker += 2;
+    }
+
+    if (!eglContextMajorVersionProcessed || !eglContextMinorVersionProcessed)
+    {
+        return "EGL_CONTEXT_CLIENT_VERSION, EGL_CONTEXT_MAJOR_VERSION or EGL_CONTEXT_MINOR_VERSION not specified";
+    }
+
+    // Core profiles do exist since OpenGL 3.2 only.
+    if (*major < 3 || (*major == 3 && *minor < 2))
+    {
+        *profile = GLFW_OPENGL_ANY_PROFILE;
+    }
+
+    glfwWindowHint(GLFW_OPENGL_PROFILE, *profile);
+
+    return 0;
+}
+
+// Translates the EGL surface attribute list into GLFW window hints. Returns
+// NULL on success, or the failure reason; the caller owns the GLFW lifecycle.
+static const GLUSchar* glusWindowApplySurfaceHints(const EGLint* surfaceAttribList)
+{
+    const EGLint* walker;
+
+    walker = surfaceAttribList;
+    while (walker && *walker != EGL_NONE)
+    {
+        switch (*walker)
+        {
+        case EGL_RENDER_BUFFER:
+            if (*(walker + 1) == EGL_BACK_BUFFER)
+            {
+                glfwWindowHint(GLFW_DOUBLEBUFFER, GL_TRUE);
+            }
+            else if (*(walker + 1) == EGL_SINGLE_BUFFER)
+            {
+                glfwWindowHint(GLFW_DOUBLEBUFFER, GL_FALSE);
+            }
+            else
+            {
+                return "EGL_RENDER_BUFFER is invalid";
+            }
+            break;
+        default:
+            break; // Unrecognized attribute; ignored.
+        }
+
+        walker += 2;
+    }
+
+    return 0;
+}
+
+GLUSboolean GLUSAPIENTRY glusWindowCreate(const GLUSchar* title, const GLUSint width, const GLUSint height, const GLUSboolean fullscreen, const GLUSboolean noResize, const EGLint* configAttribList, const EGLint* contextAttribList, const EGLint* surfaceAttribList)
+{
+    int samples = 0;
 
     int major   = 3;
     int minor   = 2;
     int profile = GLFW_OPENGL_CORE_PROFILE;
     int debug   = 0;
 
-    GLUSboolean eglContextMajorVersionProcessed = GLUS_FALSE;
-    GLUSboolean eglContextMinorVersionProcessed = GLUS_FALSE;
-
     GLUSenum err;
 
-    const EGLint* walker;
+    const GLUSchar* error = 0;
 
     if (g_window)
     {
@@ -299,334 +597,35 @@ GLUSboolean GLUSAPIENTRY glusWindowCreate(const GLUSchar* title, const GLUSint w
 
     //
 
-    walker = configAttribList;
-    while (walker && *walker != EGL_NONE)
+    error = glusWindowApplyConfigHints(configAttribList, &samples);
+
+    if (!error)
     {
-        switch (*walker)
+        error = glusWindowApplyContextHints(contextAttribList, &major, &minor, &profile, &debug);
+    }
+
+    if (!error)
+    {
+        error = glusWindowApplySurfaceHints(surfaceAttribList);
+    }
+
+    if (!error)
+    {
+        g_window = glfwCreateWindow(width, height, title, fullscreen ? glfwGetPrimaryMonitor() : 0, 0);
+
+        if (!g_window)
         {
-        case EGL_RENDERABLE_TYPE:
-            if (*(walker + 1) == EGL_OPENGL_BIT)
-            {
-                eglRenderableTypeProcessed = GLUS_TRUE;
-            }
-            else
-            {
-                glfwTerminate();
-
-                glusLogPrint(GLUS_LOG_ERROR, "EGL_RENDERABLE_TYPE has to be EGL_OPENGL_BIT");
-
-                return GLUS_FALSE;
-            }
-            break;
-        case EGL_RED_SIZE:
-            if (*(walker + 1) != EGL_DONT_CARE && *(walker + 1) >= 0)
-            {
-                glfwWindowHint(GLFW_RED_BITS, *(walker + 1));
-            }
-            else if (*(walker + 1) != EGL_DONT_CARE)
-            {
-                glfwTerminate();
-
-                glusLogPrint(GLUS_LOG_ERROR, "EGL_RED_SIZE has to be >= 0");
-
-                return GLUS_FALSE;
-            }
-            break;
-        case EGL_GREEN_SIZE:
-            if (*(walker + 1) != EGL_DONT_CARE && *(walker + 1) >= 0)
-            {
-                glfwWindowHint(GLFW_GREEN_BITS, *(walker + 1));
-            }
-            else if (*(walker + 1) != EGL_DONT_CARE)
-            {
-                glfwTerminate();
-
-                glusLogPrint(GLUS_LOG_ERROR, "EGL_GREEN_SIZE has to be >= 0");
-
-                return GLUS_FALSE;
-            }
-            break;
-        case EGL_BLUE_SIZE:
-            if (*(walker + 1) != EGL_DONT_CARE && *(walker + 1) >= 0)
-            {
-                glfwWindowHint(GLFW_BLUE_BITS, *(walker + 1));
-            }
-            else if (*(walker + 1) != EGL_DONT_CARE)
-            {
-                glfwTerminate();
-
-                glusLogPrint(GLUS_LOG_ERROR, "EGL_BLUE_SIZE has to be >= 0");
-
-                return GLUS_FALSE;
-            }
-            break;
-        case EGL_DEPTH_SIZE:
-            if (*(walker + 1) != EGL_DONT_CARE && *(walker + 1) >= 0)
-            {
-                glfwWindowHint(GLFW_DEPTH_BITS, *(walker + 1));
-            }
-            else if (*(walker + 1) != EGL_DONT_CARE)
-            {
-                glfwTerminate();
-
-                glusLogPrint(GLUS_LOG_ERROR, "EGL_DEPTH_SIZE has to be >= 0");
-
-                return GLUS_FALSE;
-            }
-            break;
-        case EGL_STENCIL_SIZE:
-            if (*(walker + 1) != EGL_DONT_CARE && *(walker + 1) >= 0)
-            {
-                glfwWindowHint(GLFW_STENCIL_BITS, *(walker + 1));
-            }
-            else if (*(walker + 1) != EGL_DONT_CARE)
-            {
-                glfwTerminate();
-
-                glusLogPrint(GLUS_LOG_ERROR, "EGL_STENCIL_SIZE has to be >= 0");
-
-                return GLUS_FALSE;
-            }
-            break;
-        case EGL_ALPHA_SIZE:
-            if (*(walker + 1) != EGL_DONT_CARE && *(walker + 1) >= 0)
-            {
-                glfwWindowHint(GLFW_ALPHA_BITS, *(walker + 1));
-            }
-            else if (*(walker + 1) != EGL_DONT_CARE)
-            {
-                glfwTerminate();
-
-                glusLogPrint(GLUS_LOG_ERROR, "EGL_ALPHA_SIZE has to be >= 0");
-
-                return GLUS_FALSE;
-            }
-            break;
-        case EGL_SAMPLE_BUFFERS:
-            if (*(walker + 1) >= 0 && *(walker + 1) <= 1)
-            {
-                if (eglSamplesProcessed && *(walker + 1) == 0)
-                {
-                    samples = 0;
-                }
-                else if (!eglSamplesProcessed)
-                {
-                    samples = *(walker + 1);
-                }
-
-                eglSampleBuffersProcessed = GLUS_TRUE;
-            }
-            else
-            {
-                glfwTerminate();
-
-                glusLogPrint(GLUS_LOG_ERROR, "EGL_SAMPLE_BUFFERS has to be >= 0 and <= 1");
-
-                return GLUS_FALSE;
-            }
-            break;
-        case EGL_SAMPLES:
-            if (*(walker + 1) >= 0)
-            {
-                if ((eglSampleBuffersProcessed && samples == 1) || !eglSampleBuffersProcessed)
-                {
-                    samples = *(walker + 1);
-                }
-
-                eglSamplesProcessed = GLUS_TRUE;
-            }
-            else
-            {
-                glfwTerminate();
-
-                glusLogPrint(GLUS_LOG_ERROR, "EGL_SAMPLES has to be >= 0");
-
-                return GLUS_FALSE;
-            }
-            break;
-        default:
-            break; // Unrecognized attribute; ignored.
+            error = "GLFW window could not be opened";
         }
-
-        walker += 2;
     }
 
-    if (!eglRenderableTypeProcessed)
+    // The single fail path for everything up to and including window creation:
+    // the reason is reported after the GLFW lifecycle is torn down.
+    if (error)
     {
         glfwTerminate();
 
-        glusLogPrint(GLUS_LOG_ERROR, "EGL_RENDERABLE_TYPE not specified");
-
-        return GLUS_FALSE;
-    }
-
-    if ((eglSampleBuffersProcessed && !eglSamplesProcessed) || (!eglSampleBuffersProcessed && eglSamplesProcessed))
-    {
-        glfwTerminate();
-
-        glusLogPrint(GLUS_LOG_ERROR, "EGL_SAMPLE_BUFFERS and EGL_SAMPLES has to be specified");
-
-        return GLUS_FALSE;
-    }
-
-    glfwWindowHint(GLFW_SAMPLES, samples);
-    glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
-
-    //
-
-    walker = contextAttribList;
-    while (walker && *walker != EGL_NONE)
-    {
-        switch (*walker)
-        {
-        case EGL_CONTEXT_MAJOR_VERSION:
-            if (*(walker + 1) >= 1)
-            {
-                major = *(walker + 1);
-
-                glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, major);
-
-                eglContextMajorVersionProcessed = GLUS_TRUE;
-            }
-            else
-            {
-                glfwTerminate();
-
-                glusLogPrint(GLUS_LOG_ERROR, "EGL_CONTEXT_MAJOR_VERSION has to be >= 1");
-
-                return GLUS_FALSE;
-            }
-            break;
-        case EGL_CONTEXT_MINOR_VERSION:
-            if (*(walker + 1) >= 0)
-            {
-                minor = *(walker + 1);
-
-                glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, minor);
-
-                eglContextMinorVersionProcessed = GLUS_TRUE;
-            }
-            else
-            {
-                glfwTerminate();
-
-                glusLogPrint(GLUS_LOG_ERROR, "EGL_CONTEXT_MINOR_VERSION has to be >= 0");
-
-                return GLUS_FALSE;
-            }
-            break;
-        case EGL_CONTEXT_OPENGL_FORWARD_COMPATIBLE:
-            if (*(walker + 1) == EGL_TRUE || *(walker + 1) == EGL_FALSE)
-            {
-                glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, *(walker + 1));
-            }
-            else
-            {
-                glfwTerminate();
-
-                glusLogPrint(GLUS_LOG_ERROR, "EGL_CONTEXT_OPENGL_FORWARD_COMPATIBLE is invalid");
-
-                return GLUS_FALSE;
-            }
-            break;
-        case EGL_CONTEXT_OPENGL_PROFILE_MASK:
-            if (*(walker + 1) == EGL_CONTEXT_OPENGL_CORE_PROFILE_BIT)
-            {
-                profile = GLFW_OPENGL_CORE_PROFILE;
-            }
-            else if (*(walker + 1) == EGL_CONTEXT_OPENGL_COMPATIBILITY_PROFILE_BIT)
-            {
-                profile = GLFW_OPENGL_COMPAT_PROFILE;
-            }
-            else
-            {
-                glfwTerminate();
-
-                glusLogPrint(GLUS_LOG_ERROR, "EGL_CONTEXT_OPENGL_PROFILE_MASK is invalid");
-
-                return GLUS_FALSE;
-            }
-            break;
-        case EGL_CONTEXT_OPENGL_DEBUG:
-            if (*(walker + 1) == EGL_TRUE || *(walker + 1) == EGL_FALSE)
-            {
-                debug = *(walker + 1);
-
-                glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, debug);
-            }
-            else
-            {
-                glfwTerminate();
-
-                glusLogPrint(GLUS_LOG_ERROR, "EGL_CONTEXT_OPENGL_DEBUG is invalid");
-
-                return GLUS_FALSE;
-            }
-            break;
-        default:
-            break; // Unrecognized attribute; ignored.
-        }
-
-        walker += 2;
-    }
-
-    if (!eglContextMajorVersionProcessed || !eglContextMinorVersionProcessed)
-    {
-        glfwTerminate();
-
-        glusLogPrint(GLUS_LOG_ERROR, "EGL_CONTEXT_CLIENT_VERSION, EGL_CONTEXT_MAJOR_VERSION or EGL_CONTEXT_MINOR_VERSION not specified");
-
-        return GLUS_FALSE;
-    }
-
-    // Core profiles do exist since OpenGL 3.2 only.
-    if (major < 3 || (major == 3 && minor < 2))
-    {
-        profile = GLFW_OPENGL_ANY_PROFILE;
-    }
-
-    glfwWindowHint(GLFW_OPENGL_PROFILE, profile);
-
-    //
-
-    walker = surfaceAttribList;
-    while (walker && *walker != EGL_NONE)
-    {
-        switch (*walker)
-        {
-        case EGL_RENDER_BUFFER:
-            if (*(walker + 1) == EGL_BACK_BUFFER)
-            {
-                glfwWindowHint(GLFW_DOUBLEBUFFER, GL_TRUE);
-            }
-            else if (*(walker + 1) == EGL_SINGLE_BUFFER)
-            {
-                glfwWindowHint(GLFW_DOUBLEBUFFER, GL_FALSE);
-            }
-            else
-            {
-                glfwTerminate();
-
-                glusLogPrint(GLUS_LOG_ERROR, "EGL_RENDER_BUFFER is invalid");
-
-                return GLUS_FALSE;
-            }
-            break;
-        default:
-            break; // Unrecognized attribute; ignored.
-        }
-
-        walker += 2;
-    }
-
-    //
-
-    g_window = glfwCreateWindow(width, height, title, fullscreen ? glfwGetPrimaryMonitor() : 0, 0);
-    if (!g_window)
-    {
-        glfwTerminate();
-
-        glusLogPrint(GLUS_LOG_ERROR, "GLFW window could not be opened");
+        glusLogPrint(GLUS_LOG_ERROR, error);
 
         return GLUS_FALSE;
     }

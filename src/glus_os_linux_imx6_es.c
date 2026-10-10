@@ -33,6 +33,21 @@
 
 #include <linux/input.h>
 
+// input_event.value semantics for EV_KEY (input.h documents them but defines
+// no names); the same press/release pair drives the touch and PowerMate
+// buttons.
+#define EV_KEY_RELEASED 0
+#define EV_KEY_PRESSED  1
+
+// The touch panel reports 15-bit absolute coordinates.
+#define TOUCH_AXIS_MAX (32767)
+
+// EVIOCGBIT(0, ...) event-type signatures the device probe matches against:
+// keyboard, PowerMate and touch display, in that order.
+#define KEYBOARD_EVENT_BITS  ((uint32_t)((1 << EV_SYN) | (1 << EV_KEY) | (1 << EV_MSC) | (1 << EV_LED) | (1 << EV_REP)))
+#define POWERMATE_EVENT_BITS ((uint32_t)((1 << EV_SYN) | (1 << EV_KEY) | (1 << EV_REL) | (1 << EV_MSC)))
+#define TOUCH_EVENT_BITS     ((uint32_t)((1 << EV_SYN) | (1 << EV_KEY) | (1 << EV_ABS)))
+
 extern GLUSvoid _glusWindowInternalClose(GLUSvoid);
 
 extern GLUSvoid _glusWindowInternalKey(GLUSint key, GLUSint state);
@@ -315,10 +330,10 @@ GLUSvoid _glusOsPollEvents()
             {
                 switch (keyEvent.value)
                 {
-                case 1: // Pressed
+                case EV_KEY_PRESSED: // Pressed
                 {
                     // CTRL-C
-                    if (keyEvent.code == 46 && (LEFT_CTRL || RIGHT_CTRL))
+                    if (keyEvent.code == KEY_C && (LEFT_CTRL || RIGHT_CTRL))
                     {
                         _glusWindowInternalClose();
 
@@ -326,11 +341,11 @@ GLUSvoid _glusOsPollEvents()
                     }
                     else
                     {
-                        if (keyEvent.code == 29)
+                        if (keyEvent.code == KEY_LEFTCTRL)
                         {
                             LEFT_CTRL = GLUS_TRUE;
                         }
-                        else if (keyEvent.code == 97)
+                        else if (keyEvent.code == KEY_RIGHTCTRL)
                         {
                             RIGHT_CTRL = GLUS_TRUE;
                         }
@@ -340,13 +355,13 @@ GLUSvoid _glusOsPollEvents()
                 }
                 break;
 
-                case 0: // Released
+                case EV_KEY_RELEASED: // Released
                 {
-                    if (keyEvent.code == 29)
+                    if (keyEvent.code == KEY_LEFTCTRL)
                     {
                         LEFT_CTRL = GLUS_FALSE;
                     }
-                    else if (keyEvent.code == 97)
+                    else if (keyEvent.code == KEY_RIGHTCTRL)
                     {
                         RIGHT_CTRL = GLUS_FALSE;
                     }
@@ -373,11 +388,11 @@ GLUSvoid _glusOsPollEvents()
 
             if (numBytes > 0)
             {
-                if (touchEvent.type == 1)
+                if (touchEvent.type == EV_KEY)
                 {
-                    if (touchEvent.code == 330)
+                    if (touchEvent.code == BTN_TOUCH)
                     {
-                        if (touchEvent.value == 1)
+                        if (touchEvent.value == EV_KEY_PRESSED)
                         {
                             if (submitPosition)
                             {
@@ -388,27 +403,27 @@ GLUSvoid _glusOsPollEvents()
 
                             _glusWindowInternalMouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
                         }
-                        else if (touchEvent.value == 0)
+                        else if (touchEvent.value == EV_KEY_RELEASED)
                         {
                             _glusWindowInternalMouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
                         }
                     }
                 }
-                else if (touchEvent.type == 3)
+                else if (touchEvent.type == EV_ABS)
                 {
-                    if (touchEvent.code == 53)
+                    if (touchEvent.code == ABS_MT_POSITION_X)
                     {
-                        g_currentX = g_displayWidth * touchEvent.value / ((1 << 15) - 1);
+                        g_currentX = g_displayWidth * touchEvent.value / TOUCH_AXIS_MAX;
 
                         submitPosition = 1;
                     }
-                    else if (touchEvent.code == 54)
+                    else if (touchEvent.code == ABS_MT_POSITION_Y)
                     {
-                        g_currentY = g_displayHeight * touchEvent.value / ((1 << 15) - 1);
+                        g_currentY = g_displayHeight * touchEvent.value / TOUCH_AXIS_MAX;
 
                         submitPosition = 1;
                     }
-                    else if ((touchEvent.code == 0 || touchEvent.code == 1) && submitPosition)
+                    else if ((touchEvent.code == ABS_X || touchEvent.code == ABS_Y) && submitPosition)
                     {
                         _glusWindowInternalMouseMove(g_currentX, g_currentY);
 
@@ -431,23 +446,23 @@ GLUSvoid _glusOsPollEvents()
 
             if (numBytes > 0)
             {
-                if (powermateEvent.type == 1)
+                if (powermateEvent.type == EV_KEY)
                 {
-                    if (powermateEvent.code == 256)
+                    if (powermateEvent.code == BTN_0)
                     {
-                        if (powermateEvent.value == 1)
+                        if (powermateEvent.value == EV_KEY_PRESSED)
                         {
                             _glusWindowInternalMouse(GLFW_MOUSE_BUTTON_MIDDLE, GLFW_PRESS);
                         }
-                        else if (powermateEvent.value == 0)
+                        else if (powermateEvent.value == EV_KEY_RELEASED)
                         {
                             _glusWindowInternalMouse(GLFW_MOUSE_BUTTON_MIDDLE, GLFW_RELEASE);
                         }
                     }
                 }
-                else if (powermateEvent.type == 2)
+                else if (powermateEvent.type == EV_REL)
                 {
-                    if (powermateEvent.code == 7)
+                    if (powermateEvent.code == REL_DIAL)
                     {
                         static int mouseWheel = 0;
 
@@ -516,7 +531,7 @@ EGLNativeWindowType _glusOsCreateNativeWindowType(const char* title, const GLUSi
             continue;
         }
 
-        if (eventBits == 0x120013 && g_keyFileDescriptor < 0)
+        if (eventBits == KEYBOARD_EVENT_BITS && g_keyFileDescriptor < 0)
         {
             glusLogPrint(GLUS_LOG_INFO, "Found keyboard on '%s'", eventFilename);
 
@@ -525,13 +540,13 @@ EGLNativeWindowType _glusOsCreateNativeWindowType(const char* title, const GLUSi
             // Disable echo.
             system("stty -echo");
         }
-        else if (eventBits == 0x17 && g_powermateFileDescriptor < 0)
+        else if (eventBits == POWERMATE_EVENT_BITS && g_powermateFileDescriptor < 0)
         {
             glusLogPrint(GLUS_LOG_INFO, "Found power mate on '%s'", eventFilename);
 
             g_powermateFileDescriptor = fileDescriptor;
         }
-        else if (eventBits == 0xb && g_touchFileDescriptor < 0)
+        else if (eventBits == TOUCH_EVENT_BITS && g_touchFileDescriptor < 0)
         {
             glusLogPrint(GLUS_LOG_INFO, "Found touch display on '%s'", eventFilename);
 

@@ -45,8 +45,8 @@ extern GLUSfloat _glusWindowGetRecordingTime(GLUSvoid);
 extern const GLUStgaimage* _glusWindowGetRecordingImageTga(GLUSvoid);
 
 static EGLDisplay g_eglDisplay = EGL_NO_DISPLAY;
-static EGLDisplay g_eglSurface = EGL_NO_SURFACE;
-static EGLDisplay g_eglContext = EGL_NO_CONTEXT;
+static EGLSurface g_eglSurface = EGL_NO_SURFACE;
+static EGLContext g_eglContext = EGL_NO_CONTEXT;
 
 static GLUSboolean g_windowCreated = GLUS_FALSE;
 static GLUSboolean g_initdone      = GLUS_FALSE;

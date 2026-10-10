@@ -10,6 +10,24 @@ shader utilities and more. GLUS lives in its own repository and is used by the
 
 ## Changelog
 
+### v1.1.4
+
+Bug fixes and internal refactoring; no API or ABI changes. Parser and window
+behaviour are byte-identical (verified with golden and differential harnesses).
+
+- **Bug fixes**: MTL keyword overmatch (a prefix `strncmp` matching longer
+  identifiers), EGL handle typedefs in the public headers, and loader
+  error-path hygiene.
+- **Wavefront parser decomposed**: the 770-line `_glusWavefrontParse` is now
+  eight per-record handlers with a shared parse context and a single cleanup
+  path.
+- **`glusWindowCreate` decomposed** into three attribute-walker helpers and one
+  validated size-hint setter with a single fail path; all error exits keep
+  their exact messages and ordering.
+- **iMX6 backend**: the evdev literals use `<linux/input.h>` names and the
+  EVIOCGBIT device signatures are spelled as their `EV_*` bit combinations;
+  the wavefront face-encoding codes are a named enum.
+
 ### v1.1.3
 
 Platform build fixes and CI; no library behaviour changes.
