@@ -67,7 +67,7 @@ extern "C"
 
 #include "../GLUS/glus_define_color_channel_es.h"
 
-#include "../GLUS/glus_define_ushort.h"
+#include "../GLUS/glus_define_uint.h"
 
 #define GLUS_EGL_API EGL_OPENGL_ES_API
 

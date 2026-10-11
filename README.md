@@ -10,6 +10,17 @@ shader utilities and more. GLUS lives in its own repository and is used by the
 
 ## Changelog
 
+### v1.1.6
+
+One `GLUSindex` width for every flavor.
+
+- **`glus2.h` uses the same 32-bit `GLUSindex` as `glus3.h`, `glus31.h` and
+  `GL/glus.h`**. The type changed per includer before, so the very same
+  `GLUSshape` struct held 16-bit indices through `glus2.h` and 32-bit
+  indices through the other headers - any build mixing flavors (one GLUS
+  library, ES 2.0 and ES 3.x consumers) read the index arrays as the wrong
+  width and rendered garbage.
+
 ### v1.1.5
 
 OpenVG support restored and the ES flavors fixed for desktop Linux.
