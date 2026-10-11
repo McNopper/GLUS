@@ -10,6 +10,24 @@ shader utilities and more. GLUS lives in its own repository and is used by the
 
 ## Changelog
 
+### v1.1.5
+
+OpenVG support restored and the ES flavors fixed for desktop Linux.
+
+- **OpenVG build flavor** (`OpenGL=VG`, `GLUS_VG11`): compiles the `*_vg.c`
+  files and the EGL window against any EGL with an OpenVG client API. Shader
+  programs, draw helpers and the GL twins of the `*_vg.c` files are outside the
+  `VG/glus.h` API surface and are excluded, matching the historical VG build.
+- **ES/VG OS backends per platform**: the non-arm branch used to keep only the
+  Windows simulation backend, leaving desktop Linux without `_glusOs*`
+  implementations. Exactly one unguarded OS backend is now kept per platform.
+- **Flavor defines on every platform**: `GLUS_ES*`/`GLUS_VG11` are derived from
+  the `OpenGL` setting on all platforms, not only on Windows and ARM.
+- **ARM platforms**: an explicitly requested flavor is no longer overridden by
+  the historical ES 2.0 default, and the OS backend is selectable per platform:
+  `SoC=iMX6` for i.MX6 and other Vivante boards (e.g. STM32MP1), `SoC=Linux`
+  for generic arm Linux (X11), Raspberry Pi as before.
+
 ### v1.1.4
 
 Bug fixes and internal refactoring; no API or ABI changes. Parser and window

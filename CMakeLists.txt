@@ -2,6 +2,8 @@
 # GLUS CMake file
 #
 # Note: Set OpenGL=ES, OpenGL=ES31 or OpenGL=ES2 for Windows OpenGL ES 3.0, 3.1 or 2.0 simulation.
+#       Set OpenGL=VG for OpenVG 1.1. Set SoC=iMX6 for i.MX6 and other
+#       Vivante platforms (e.g. STM32MP1), SoC=Linux for generic arm Linux.
 #       Raspberry Pi and i.MX6 is default OpenGL ES 2.0.
 #		Set SoC=iMX6 for i.MX6.
 #
@@ -10,7 +12,7 @@
 
 cmake_minimum_required(VERSION 3.14)
 
-project(GLUS VERSION 1.1.4)
+project(GLUS VERSION 1.1.5)
 
 # Build policy + static analysis. Registered ONLY when GLUS is the top-level
 # project: the example projects vendor GLUS through add_subdirectory() and
@@ -34,10 +36,11 @@ ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
 	IF(${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm")
 		# Raspberry Pi and i.MX6
 		
-		SET(OpenGL "ES2")
+		IF(NOT OpenGL)
+			SET(OpenGL "ES2")
+		ENDIF()
 		
-		add_definitions(-DGLUS_ES2)
-
+		
 		IF(${SoC} MATCHES "iMX6")
 			# i.MX6
 
@@ -81,6 +84,11 @@ ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 	
 		include_directories(C:\\Imagination\\PowerVR_Graphics\\PowerVR_SDK\\SDK_2016_R1.2\\Builds\\Include)	
 
+	ELSEIF(${OpenGL} MATCHES "VG")
+		# OpenVG 1.1. The VG/ and EGL/ headers are provided by the consuming project.
+
+		add_definitions(-DGLUS_VG11)
+
 	ELSE()
 		# Desktop
 			
@@ -88,6 +96,18 @@ ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 		
 ENDIF()
 		
+# Flavor define for the GL/glus.h dispatch. Set on every platform, unlike the
+# simulation defines above, so the ES and VG flavors also work on the desktop.
+IF(${OpenGL} MATCHES "ES31")
+	add_definitions(-DGLUS_ES31)
+ELSEIF(${OpenGL} MATCHES "ES2")
+	add_definitions(-DGLUS_ES2)
+ELSEIF(${OpenGL} MATCHES "ES")
+	add_definitions(-DGLUS_ES)
+ELSEIF(${OpenGL} MATCHES "VG")
+	add_definitions(-DGLUS_VG11)
+ENDIF()
+
 # Files only valid for desktop OpenGL. glus_ibl.c needs
 # GL_TEXTURE_CUBE_MAP_ARRAY, which no OpenGL ES version provides.
 list(APPEND ONLY_GL_C_FILES		${GLUS_SOURCE_DIR}/src/glus_window_glfw.c
@@ -121,55 +141,96 @@ IF(${OpenGL} MATCHES "ES")
 
 	IF(${OpenGL} MATCHES "ES31")
 		# OpenGL ES 3.1
-		
+
 		list(REMOVE_ITEM C_FILES ${ONLY_GL_C_FILES} ${ES2_C_FILES})
 
 	ELSEIF(${OpenGL} MATCHES "ES2")
 		# OpenGL ES 2.0
-		
+
 		list(REMOVE_ITEM C_FILES ${ONLY_GL_C_FILES} ${ES31_C_FILES})
 
-	ELSE()		
+	ELSE()
 		# OpenGL ES 3.0
-		
+
 		list(REMOVE_ITEM C_FILES ${ONLY_GL_C_FILES} ${ES31_C_FILES} ${ES2_C_FILES})
-	
+
 	ENDIF()
-	
+
+ELSEIF(${OpenGL} MATCHES "VG")
+	# OpenVG 1.1: the window/EGL and OS files are shared with the ES flavors.
+	# Shader programs, draw helpers and the GL twins of the *_vg.c files are
+	# outside the API surface of VG/glus.h and are not compiled.
+
+	list(REMOVE_ITEM C_FILES ${ONLY_GL_C_FILES} ${ES2_C_FILES} ${ES31_C_FILES}
+		${GLUS_SOURCE_DIR}/src/glus_program_es.c
+		${GLUS_SOURCE_DIR}/src/glus_animation.c
+		${GLUS_SOURCE_DIR}/src/glus_extension.c
+		${GLUS_SOURCE_DIR}/src/glus_log.c
+		${GLUS_SOURCE_DIR}/src/glus_screenshot.c
+		${GLUS_SOURCE_DIR}/src/glus_version.c
+		${GLUS_SOURCE_DIR}/src/glus_shape.c
+		${GLUS_SOURCE_DIR}/src/glus_shape_texgen.c
+		${GLUS_SOURCE_DIR}/src/glus_shape_wavefront.c
+		${GLUS_SOURCE_DIR}/src/glus_line.c
+		${GLUS_SOURCE_DIR}/src/glus_line_wavefront.c
+		${GLUS_SOURCE_DIR}/src/glus_wavefront.c
+	)
+
+ELSE()
+	# OpenGL 3 and 4
+
+	list(REMOVE_ITEM C_FILES ${ES_C_FILES} ${ES2_C_FILES} ${ES31_C_FILES} ${VG_C_FILES})
+
+ENDIF()
+
+# Platform OS backends for the ES and VG flavors. The files are not guarded
+# internally, so exactly one per platform is kept.
+IF(${OpenGL} MATCHES "ES|VG")
+
 	IF(${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm")
 		# Raspberry Pi and i.MX6
 
 		list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_android_es.c)
-		list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_es.c)
 		list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_windows_es.c)
-		
-		IF(${SoC} MATCHES "iMX6")			
-			# i.MX6
-			
+
+		IF(${SoC} MATCHES "iMX6")
+			# i.MX6 and other Vivante platforms (e.g. STM32MP1)
+
+			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_es.c)
 			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_raspberrypi_es.c)
-			
+
+		ELSEIF(${SoC} MATCHES "Linux")
+			# Generic arm Linux: X11 window via glus_os_linux_es.c
+
+			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_imx6_es.c)
+			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_raspberrypi_es.c)
+
 		ELSE()
 			# Raspberry Pi
-		
+
+			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_es.c)
 			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_imx6_es.c)
-			
+
 		ENDIF()
-		
-	ELSE()
-		# Windows simulation
-	
+
+ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+		# Desktop Windows simulation
+
 		list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_android_es.c)
 		list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_es.c)
 		list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_imx6_es.c)
-		list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_raspberrypi_es.c)		
-		
-	ENDIF()	
-	
-ELSE()
-	# OpenGL 3 and 4
-	
-	list(REMOVE_ITEM C_FILES ${ES_C_FILES} ${ES2_C_FILES} ${ES31_C_FILES} ${VG_C_FILES})
-	
+		list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_raspberrypi_es.c)
+
+	ELSE()
+		# Desktop Linux
+
+		list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_android_es.c)
+		list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_windows_es.c)
+		list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_imx6_es.c)
+		list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_raspberrypi_es.c)
+
+	ENDIF()
+
 ENDIF()
 
 add_library(GLUS ${C_FILES} ${H_FILES})
@@ -185,7 +246,7 @@ target_include_directories (GLUS PUBLIC ${GLUS_SOURCE_DIR}/src)
 # Desktop OpenGL needs GLEW and GLFW. When GLUS is built standalone these are
 # fetched automatically. When GLUS is added by a parent project that already
 # provides them (e.g. the McNopper/OpenGL examples), the existing targets are reused.
-IF(NOT (${OpenGL} MATCHES "ES"))
+IF(NOT (${OpenGL} MATCHES "ES|VG"))
 
 	include(FetchContent)
 
