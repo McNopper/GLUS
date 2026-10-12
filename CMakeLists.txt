@@ -1,7 +1,7 @@
 #
 # GLUS CMake file
 #
-# Note: Set OpenGL=ES, OpenGL=ES31 or OpenGL=ES2 for Windows OpenGL ES 3.0, 3.1 or 2.0 simulation.
+# Note: Set OpenGL=ES, OpenGL=ES31, OpenGL=ES32 or OpenGL=ES2 for Windows OpenGL ES 3.0, 3.1, 3.2 or 2.0 simulation.
 #       Set OpenGL=VG for OpenVG 1.1. Set SoC=fbdev for the Linux framebuffer
 #       windowing, combined with GPU=Vivante for the EGL stack's fb* windowing
 #       API (e.g. STM32MP1), SoC=Wayland for the Wayland windowing and
@@ -80,7 +80,14 @@ ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 		add_definitions(-DGLUS_ES31)
 	
 		include_directories(C:\\Imagination\\PowerVR_Graphics\\PowerVR_SDK\\SDK_2016_R1.2\\Builds\\Include)	
+	
+	ELSEIF(${OpenGL} MATCHES "ES32")
+		# Desktop OpenGL ES 3.2
 
+		add_definitions(-DGLUS_ES32)
+	
+		include_directories(C:\\Imagination\\PowerVR_Graphics\\PowerVR_SDK\\SDK_2016_R1.2\\Builds\\Include)	
+	
 	ELSEIF(${OpenGL} MATCHES "ES2")
 		# Desktop OpenGL ES 2.0
 
@@ -111,6 +118,8 @@ ENDIF()
 # simulation defines above, so the ES and VG flavors also work on the desktop.
 IF(${OpenGL} MATCHES "ES31")
 	add_definitions(-DGLUS_ES31)
+ELSEIF(${OpenGL} MATCHES "ES32")
+	add_definitions(-DGLUS_ES32)
 ELSEIF(${OpenGL} MATCHES "ES2")
 	add_definitions(-DGLUS_ES2)
 ELSEIF(${OpenGL} MATCHES "ES")
@@ -150,7 +159,12 @@ IF(${OpenGL} MATCHES "ES")
 
 	list(REMOVE_ITEM C_FILES ${VG_C_FILES})
 
-	IF(${OpenGL} MATCHES "ES31")
+	IF(${OpenGL} MATCHES "ES32")
+		# OpenGL ES 3.2
+
+		list(REMOVE_ITEM C_FILES ${ONLY_GL_C_FILES} ${ES2_C_FILES})
+
+	ELSEIF(${OpenGL} MATCHES "ES31")
 		# OpenGL ES 3.1
 
 		list(REMOVE_ITEM C_FILES ${ONLY_GL_C_FILES} ${ES2_C_FILES})

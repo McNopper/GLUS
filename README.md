@@ -218,8 +218,8 @@ required by their licenses.
 
 ## OpenGL ES / OpenVG
 
-OpenGL ES 2.0/3.0/3.1 and OpenVG builds are selected via the `OpenGL` CMake
-variable (e.g. `-DOpenGL=ES2`, `-DOpenGL=ES`, `-DOpenGL=ES31`). An Android NDK
+OpenGL ES 2.0/3.0/3.1/3.2 and OpenVG builds are selected via the `OpenGL` CMake
+variable (e.g. `-DOpenGL=ES2`, `-DOpenGL=ES`, `-DOpenGL=ES31`, `-DOpenGL=ES32`). An Android NDK
 build is available under `Android/jni`.
 
 ## Documentation

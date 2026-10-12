@@ -35,7 +35,7 @@ in `cmake/` is registered **only when GLUS is the top-level project**, so being
 vendored never disturbs the host build.
 
 Build variants (see the header comment in `CMakeLists.txt`): `OpenGL=ES2`,
-`OpenGL=ES3`, `OpenGL=ES31` select the OpenGL ES flavour; `SoC=fbdev` selects
+`OpenGL=ES3`, `OpenGL=ES31`, `OpenGL=ES32` select the OpenGL ES flavour; `SoC=fbdev` selects
 the Linux framebuffer windowing (`GPU=Vivante` guards its EGL windowing API)
 and `SoC=Wayland` the Wayland windowing. `Android/jni/Android.mk` covers the NDK build.
 

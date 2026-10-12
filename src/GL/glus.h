@@ -20,9 +20,11 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-#if (GLUS_ES || GLUS_ES2 || GLUS_ES3 || GLUS_ES31)
+#if (GLUS_ES || GLUS_ES2 || GLUS_ES3 || GLUS_ES31 || GLUS_ES32)
 
-#ifdef GLUS_ES31
+#ifdef GLUS_ES32
+#include "../GLES3/glus32.h"
+#elif GLUS_ES31
 #include "../GLES3/glus31.h"
 #elif GLUS_ES2
 #include "../GLES2/glus2.h"
@@ -30,7 +32,7 @@
 #include "../GLES3/glus3.h"
 #endif
 
-#elif (GLUS_VG || GLUS_VG11) /*GLUS_ES || GLUS_ES2 || GLUS_ES3 || GLUS_ES31*/
+#elif (GLUS_VG || GLUS_VG11) /*GLUS_ES || GLUS_ES2 || GLUS_ES3 || GLUS_ES31 || GLUS_ES32*/
 
 #include "../VG/glus.h"
 
