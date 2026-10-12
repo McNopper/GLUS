@@ -36,8 +36,10 @@ vendored never disturbs the host build.
 
 Build variants (see the header comment in `CMakeLists.txt`): `OpenGL=ES2`,
 `OpenGL=ES3`, `OpenGL=ES31`, `OpenGL=ES32` select the OpenGL ES flavour; `SoC=fbdev` selects
-the Linux framebuffer windowing (`GPU=Vivante` guards its EGL windowing API)
-and `SoC=Wayland` the Wayland windowing. `Android/jni/Android.mk` covers the NDK build.
+the Linux framebuffer windowing (`GPU=Vivante` guards its EGL windowing API),
+`SoC=Wayland` the Wayland windowing and `SoC=GBM` the GBM/DRM windowing
+(`Rotation=0|90|180|270` its display orientation).
+`Android/jni/Android.mk` covers the NDK build.
 
 ## Finding and eliminating bugs
 

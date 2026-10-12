@@ -4,7 +4,8 @@
 # Note: Set OpenGL=ES, OpenGL=ES31, OpenGL=ES32 or OpenGL=ES2 for Windows OpenGL ES 3.0, 3.1, 3.2 or 2.0 simulation.
 #       Set OpenGL=VG for OpenVG 1.1. Set SoC=fbdev for the Linux framebuffer
 #       windowing, combined with GPU=Vivante for the EGL stack's fb* windowing
-#       API (e.g. STM32MP1), SoC=Wayland for the Wayland windowing and
+#       API (e.g. STM32MP1), SoC=Wayland for the Wayland windowing,
+#       SoC=GBM for the GBM/DRM windowing without a compositor and
 #       SoC=Linux for generic arm Linux.
 #       Raspberry Pi and fbdev default to OpenGL ES 2.0.
 #
@@ -206,13 +207,15 @@ ELSE()
 
 	list(REMOVE_ITEM C_FILES ${ES_C_FILES} ${ES2_C_FILES} ${ES31_C_FILES} ${VG_C_FILES})
 	list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_wayland.c)
+	list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_gbm.c)
 
 ENDIF()
 
 # Platform OS backends for the ES and VG flavors. The files are not guarded
-# internally, so exactly one per platform is kept. glus_os_linux_wayland.c has
-# no _es suffix - its code is generic - and therefore survives the flavor file
-# globs; every branch has to remove it explicitly.
+# internally, so exactly one per platform is kept. glus_os_linux_wayland.c and
+# glus_os_linux_gbm.c have no _es suffix - their code is generic - and
+# therefore survive the flavor file globs; every branch has to remove them
+# explicitly.
 IF(${OpenGL} MATCHES "ES|VG")
 
 	IF(${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm")
@@ -227,6 +230,7 @@ IF(${OpenGL} MATCHES "ES|VG")
 			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_es.c)
 			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_raspberrypi_es.c)
 			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_wayland.c)
+			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_gbm.c)
 
 		ELSEIF(${SoC} MATCHES "Wayland")
 			# Wayland windowing: xdg-shell toplevel and wl_egl_window
@@ -234,6 +238,15 @@ IF(${OpenGL} MATCHES "ES|VG")
 			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_es.c)
 			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_fbdev_es.c)
 			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_raspberrypi_es.c)
+			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_gbm.c)
+
+		ELSEIF(${SoC} MATCHES "GBM")
+			# GBM/DRM windowing: gbm surface presented by KMS page flips
+
+			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_es.c)
+			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_fbdev_es.c)
+			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_raspberrypi_es.c)
+			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_wayland.c)
 
 		ELSEIF(${SoC} MATCHES "Linux")
 			# Generic arm Linux: X11 window via glus_os_linux_es.c
@@ -241,6 +254,7 @@ IF(${OpenGL} MATCHES "ES|VG")
 			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_fbdev_es.c)
 			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_raspberrypi_es.c)
 			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_wayland.c)
+			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_gbm.c)
 
 		ELSE()
 			# Raspberry Pi
@@ -248,6 +262,7 @@ IF(${OpenGL} MATCHES "ES|VG")
 			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_es.c)
 			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_fbdev_es.c)
 			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_wayland.c)
+			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_gbm.c)
 
 		ENDIF()
 
@@ -258,6 +273,7 @@ ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 		list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_es.c)
 		list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_fbdev_es.c)
 		list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_wayland.c)
+		list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_gbm.c)
 		list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_raspberrypi_es.c)
 
 	ELSE()
@@ -272,8 +288,15 @@ ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 			# Wayland windowing: xdg-shell toplevel and wl_egl_window
 
 			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_es.c)
+			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_gbm.c)
+		ELSEIF(${SoC} MATCHES "GBM")
+			# GBM/DRM windowing: gbm surface presented by KMS page flips
+
+			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_es.c)
+			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_wayland.c)
 		ELSE()
 			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_wayland.c)
+			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_gbm.c)
 		ENDIF()
 
 	ENDIF()
@@ -342,6 +365,32 @@ IF(${SoC} MATCHES "Wayland")
 	target_include_directories(GLUS PRIVATE ${CMAKE_CURRENT_BINARY_DIR} ${WAYLAND_CLIENT_INCLUDE_DIRS})
 
 	target_compile_definitions(GLUS PUBLIC WL_EGL_PLATFORM)
+
+ENDIF()
+
+# GBM/DRM windowing backend: EGL_API_GBM types the EGL native display as a
+# gbm_device (and the native window as the gbm surface), which every EGL
+# stack with GBM support understands. The DRM headers come with their own
+# include directory (xf86drm.h includes <drm.h> flat). Rotation selects the
+# display orientation in degrees (0, 90, 180 or 270) through the DRM plane
+# rotation property - displays whose controller cannot rotate keep their
+# native orientation.
+IF(${SoC} MATCHES "GBM")
+
+	find_package(PkgConfig REQUIRED)
+	pkg_check_modules(DRM REQUIRED libdrm)
+	pkg_check_modules(GBM REQUIRED gbm)
+
+	if(NOT Rotation)
+		set(Rotation 0)
+	endif()
+	if(NOT ${Rotation} MATCHES "^(0|90|180|270)$")
+		message(FATAL_ERROR "GLUS: Rotation must be 0, 90, 180 or 270 (got ${Rotation}).")
+	endif()
+
+	target_include_directories(GLUS PRIVATE ${DRM_INCLUDE_DIRS} ${GBM_INCLUDE_DIRS})
+
+	target_compile_definitions(GLUS PUBLIC EGL_API_GBM PRIVATE GLUS_GBM_ROTATION=${Rotation})
 
 ENDIF()
 

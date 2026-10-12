@@ -39,7 +39,8 @@ OpenVG support restored and the ES flavors fixed for desktop Linux.
   `SoC=fbdev` for the Linux framebuffer windowing - combined with `GPU=Vivante`
   for the EGL stack's fb* windowing API (e.g. STM32MP1) -, `SoC=Wayland` for
   the Wayland windowing (xdg-shell toplevel and `wl_egl_window`, GPU
-  independent) and `SoC=Linux`
+  independent), `SoC=GBM` for the GBM/DRM windowing without a compositor
+  (gbm surface presented by KMS page flips) and `SoC=Linux`
   for generic arm Linux (X11), Raspberry Pi as before.
 
 ### v1.1.4
