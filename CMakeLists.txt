@@ -3,7 +3,9 @@
 #
 # Note: Set OpenGL=ES, OpenGL=ES31 or OpenGL=ES2 for Windows OpenGL ES 3.0, 3.1 or 2.0 simulation.
 #       Set OpenGL=VG for OpenVG 1.1. Set SoC=fbdev for the Linux framebuffer
-#       windowing (e.g. Vivante on STM32MP1), SoC=Linux for generic arm Linux.
+#       windowing, combined with GPU=Vivante for the EGL stack's fb* windowing
+#       API (e.g. STM32MP1), SoC=Wayland for the Wayland windowing and
+#       SoC=Linux for generic arm Linux.
 #       Raspberry Pi and fbdev default to OpenGL ES 2.0.
 #
 # (c) Norbert Nopper
@@ -41,7 +43,17 @@ ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
 		
 		
 		IF(${SoC} MATCHES "fbdev")
-			# fbdev windowing
+			# fbdev windowing: the native window comes from the EGL stack's own
+			# windowing API, which is GPU specific. GPU=Vivante selects the fb*
+			# windowing of EGL/eglvivante.h (e.g. STM32MP1); other GPUs need
+			# their own implementation and are rejected here instead of failing
+			# somewhere in the compile.
+			IF(NOT GPU)
+				SET(GPU "Vivante")
+			ENDIF()
+			IF(NOT ${GPU} MATCHES "Vivante")
+				message(FATAL_ERROR "GLUS: SoC=fbdev supports GPU=Vivante only (got GPU=${GPU})")
+			ENDIF()
 
 			# Everything is in /usr/include
 
@@ -179,23 +191,34 @@ ELSE()
 	# OpenGL 3 and 4
 
 	list(REMOVE_ITEM C_FILES ${ES_C_FILES} ${ES2_C_FILES} ${ES31_C_FILES} ${VG_C_FILES})
+	list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_wayland.c)
 
 ENDIF()
 
 # Platform OS backends for the ES and VG flavors. The files are not guarded
-# internally, so exactly one per platform is kept.
+# internally, so exactly one per platform is kept. glus_os_linux_wayland.c has
+# no _es suffix - its code is generic - and therefore survives the flavor file
+# globs; every branch has to remove it explicitly.
 IF(${OpenGL} MATCHES "ES|VG")
 
 	IF(${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm")
-		# Raspberry Pi and fbdev windowing
+		# Raspberry Pi and the Linux windowing backends
 
 		list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_android_es.c)
 		list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_windows_es.c)
 
 		IF(${SoC} MATCHES "fbdev")
-			# fbdev windowing (e.g. Vivante on STM32MP1)
+			# fbdev windowing (GPU=Vivante, e.g. STM32MP1)
 
 			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_es.c)
+			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_raspberrypi_es.c)
+			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_wayland.c)
+
+		ELSEIF(${SoC} MATCHES "Wayland")
+			# Wayland windowing: xdg-shell toplevel and wl_egl_window
+
+			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_es.c)
+			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_fbdev_es.c)
 			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_raspberrypi_es.c)
 
 		ELSEIF(${SoC} MATCHES "Linux")
@@ -203,12 +226,14 @@ IF(${OpenGL} MATCHES "ES|VG")
 
 			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_fbdev_es.c)
 			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_raspberrypi_es.c)
+			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_wayland.c)
 
 		ELSE()
 			# Raspberry Pi
 
 			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_es.c)
 			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_fbdev_es.c)
+			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_wayland.c)
 
 		ENDIF()
 
@@ -218,6 +243,7 @@ ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 		list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_android_es.c)
 		list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_es.c)
 		list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_fbdev_es.c)
+		list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_wayland.c)
 		list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_raspberrypi_es.c)
 
 	ELSE()
@@ -227,6 +253,14 @@ ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 		list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_windows_es.c)
 		list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_fbdev_es.c)
 		list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_raspberrypi_es.c)
+
+		IF(${SoC} MATCHES "Wayland")
+			# Wayland windowing: xdg-shell toplevel and wl_egl_window
+
+			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_es.c)
+		ELSE()
+			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_wayland.c)
+		ENDIF()
 
 	ENDIF()
 
@@ -241,6 +275,61 @@ if(COMMAND project_enable_warnings)
 	project_enable_warnings(GLUS)
 endif()
 target_include_directories (GLUS PUBLIC ${GLUS_SOURCE_DIR}/src)
+
+# Wayland windowing backend. The xdg-shell protocol code is generated at build
+# time, and WL_EGL_PLATFORM types the EGL native window as wl_egl_window (and
+# the native display as wl_display), which every EGL stack with Wayland
+# support understands.
+IF(${SoC} MATCHES "Wayland")
+
+	find_package(PkgConfig REQUIRED)
+	pkg_check_modules(WAYLAND_CLIENT REQUIRED wayland-client)
+
+	find_program(WAYLAND_SCANNER wayland-scanner)
+	if(NOT WAYLAND_SCANNER)
+		message(FATAL_ERROR "GLUS: SoC=Wayland needs wayland-scanner (from libwayland-bin / wayland-devel).")
+	endif()
+
+	execute_process(
+		COMMAND pkg-config --variable=pkgdatadir wayland-protocols
+		OUTPUT_VARIABLE WAYLAND_PROTOCOLS_DIR
+		OUTPUT_STRIP_TRAILING_WHITESPACE
+	)
+
+	set(XDG_SHELL_XML "${WAYLAND_PROTOCOLS_DIR}/stable/xdg-shell/xdg-shell.xml")
+	if(NOT EXISTS "${XDG_SHELL_XML}")
+		# The XML is build-time data and platform independent; distributions
+		# without a wayland-protocols pkg-config file install it here.
+		set(XDG_SHELL_XML "/usr/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml")
+	endif()
+	if(NOT EXISTS "${XDG_SHELL_XML}")
+		message(FATAL_ERROR "GLUS: wayland-protocols xdg-shell.xml not found (looked at '${WAYLAND_PROTOCOLS_DIR}' and /usr/share/wayland-protocols). Install wayland-protocols and make sure pkg-config finds it.")
+	endif()
+
+	set(XDG_SHELL_HDR "${CMAKE_CURRENT_BINARY_DIR}/xdg-shell-client-protocol.h")
+	set(XDG_SHELL_SRC "${CMAKE_CURRENT_BINARY_DIR}/xdg-shell-protocol.c")
+
+	add_custom_command(
+		OUTPUT ${XDG_SHELL_HDR}
+		COMMAND ${WAYLAND_SCANNER} client-header ${XDG_SHELL_XML} ${XDG_SHELL_HDR}
+		DEPENDS ${XDG_SHELL_XML}
+		VERBATIM
+	)
+
+	add_custom_command(
+		OUTPUT ${XDG_SHELL_SRC}
+		COMMAND ${WAYLAND_SCANNER} private-code ${XDG_SHELL_XML} ${XDG_SHELL_SRC}
+		DEPENDS ${XDG_SHELL_XML}
+		VERBATIM
+	)
+
+	target_sources(GLUS PRIVATE ${XDG_SHELL_HDR} ${XDG_SHELL_SRC})
+
+	target_include_directories(GLUS PRIVATE ${CMAKE_CURRENT_BINARY_DIR} ${WAYLAND_CLIENT_INCLUDE_DIRS})
+
+	target_compile_definitions(GLUS PUBLIC WL_EGL_PLATFORM)
+
+ENDIF()
 
 # Desktop OpenGL needs GLEW and GLFW. When GLUS is built standalone these are
 # fetched automatically. When GLUS is added by a parent project that already
