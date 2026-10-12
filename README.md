@@ -36,7 +36,8 @@ OpenVG support restored and the ES flavors fixed for desktop Linux.
   the `OpenGL` setting on all platforms, not only on Windows and ARM.
 - **ARM platforms**: an explicitly requested flavor is no longer overridden by
   the historical ES 2.0 default, and the OS backend is selectable per platform:
-  `SoC=iMX6` for i.MX6 and other Vivante boards (e.g. STM32MP1), `SoC=Linux`
+  `SoC=fbdev` for the Linux framebuffer windowing (e.g. Vivante on
+  STM32MP1), `SoC=Linux`
   for generic arm Linux (X11), Raspberry Pi as before.
 
 ### v1.1.4
@@ -53,7 +54,7 @@ behaviour are byte-identical (verified with golden and differential harnesses).
 - **`glusWindowCreate` decomposed** into three attribute-walker helpers and one
   validated size-hint setter with a single fail path; all error exits keep
   their exact messages and ordering.
-- **iMX6 backend**: the evdev literals use `<linux/input.h>` names and the
+- **fbdev backend**: the evdev literals use `<linux/input.h>` names and the
   EVIOCGBIT device signatures are spelled as their `EV_*` bit combinations;
   the wavefront face-encoding codes are a named enum.
 

@@ -20,6 +20,9 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
+// The fbdev windowing entry points (fbGetDisplayByIndex, fbCreateWindow, ...)
+// are declared in EGL/eglvivante.h; the header is part of the platform EGL
+// package, not of a driver - only the windowing approach is generic.
 #include <EGL/eglvivante.h>
 
 #include "GL/glus.h"

@@ -2,10 +2,9 @@
 # GLUS CMake file
 #
 # Note: Set OpenGL=ES, OpenGL=ES31 or OpenGL=ES2 for Windows OpenGL ES 3.0, 3.1 or 2.0 simulation.
-#       Set OpenGL=VG for OpenVG 1.1. Set SoC=iMX6 for i.MX6 and other
-#       Vivante platforms (e.g. STM32MP1), SoC=Linux for generic arm Linux.
-#       Raspberry Pi and i.MX6 is default OpenGL ES 2.0.
-#		Set SoC=iMX6 for i.MX6.
+#       Set OpenGL=VG for OpenVG 1.1. Set SoC=fbdev for the Linux framebuffer
+#       windowing (e.g. Vivante on STM32MP1), SoC=Linux for generic arm Linux.
+#       Raspberry Pi and fbdev default to OpenGL ES 2.0.
 #
 # (c) Norbert Nopper
 # 
@@ -34,15 +33,15 @@ ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
 	# Linux
 
 	IF(${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm")
-		# Raspberry Pi and i.MX6
+		# Raspberry Pi and fbdev windowing
 		
 		IF(NOT OpenGL)
 			SET(OpenGL "ES2")
 		ENDIF()
 		
 		
-		IF(${SoC} MATCHES "iMX6")
-			# i.MX6
+		IF(${SoC} MATCHES "fbdev")
+			# fbdev windowing
 
 			# Everything is in /usr/include
 
@@ -188,13 +187,13 @@ ENDIF()
 IF(${OpenGL} MATCHES "ES|VG")
 
 	IF(${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm")
-		# Raspberry Pi and i.MX6
+		# Raspberry Pi and fbdev windowing
 
 		list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_android_es.c)
 		list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_windows_es.c)
 
-		IF(${SoC} MATCHES "iMX6")
-			# i.MX6 and other Vivante platforms (e.g. STM32MP1)
+		IF(${SoC} MATCHES "fbdev")
+			# fbdev windowing (e.g. Vivante on STM32MP1)
 
 			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_es.c)
 			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_raspberrypi_es.c)
@@ -202,14 +201,14 @@ IF(${OpenGL} MATCHES "ES|VG")
 		ELSEIF(${SoC} MATCHES "Linux")
 			# Generic arm Linux: X11 window via glus_os_linux_es.c
 
-			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_imx6_es.c)
+			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_fbdev_es.c)
 			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_raspberrypi_es.c)
 
 		ELSE()
 			# Raspberry Pi
 
 			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_es.c)
-			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_imx6_es.c)
+			list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_fbdev_es.c)
 
 		ENDIF()
 
@@ -218,7 +217,7 @@ ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 
 		list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_android_es.c)
 		list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_es.c)
-		list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_imx6_es.c)
+		list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_fbdev_es.c)
 		list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_raspberrypi_es.c)
 
 	ELSE()
@@ -226,7 +225,7 @@ ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 
 		list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_android_es.c)
 		list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_windows_es.c)
-		list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_imx6_es.c)
+		list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_fbdev_es.c)
 		list(REMOVE_ITEM C_FILES ${GLUS_SOURCE_DIR}/src/glus_os_linux_raspberrypi_es.c)
 
 	ENDIF()
