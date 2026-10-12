@@ -14,7 +14,7 @@
 
 cmake_minimum_required(VERSION 3.14)
 
-project(GLUS VERSION 1.1.6)
+project(GLUS VERSION 1.1.7)
 
 # Build policy + static analysis. Registered ONLY when GLUS is the top-level
 # project: the example projects vendor GLUS through add_subdirectory() and

@@ -10,6 +10,36 @@ shader utilities and more. GLUS lives in its own repository and is used by the
 
 ## Changelog
 
+### v1.1.7
+
+Embedded Linux windowing backends and the OpenGL ES 3.2 flavor.
+
+- **`SoC=fbdev`** (renamed from `SoC=iMX6`, no alias): the backend is the
+  Linux framebuffer windowing approach, not one SoC. Selecting it requires
+  **`GPU=Vivante`** (the default) - the `fb*` windowing of
+  `EGL/eglvivante.h` is Vivante's API; other GPUs are rejected at configure
+  time until they have their own implementation.
+- **`SoC=Wayland`**: new backend - an xdg-shell toplevel window, the
+  `wl_egl_window` of libwayland-egl as the EGL native window and input
+  through `wl_seat`. GPU independent; the xdg-shell protocol code is
+  generated at build time.
+- **`SoC=GBM`**: new backend - gbm device and gbm surface on a DRM node,
+  KMS modeset and a page flip per swap, no compositor. **`Rotation=0|90|180|270`**
+  selects the display orientation through the DRM plane rotation property
+  (the same orientation concept the Android backend handles from the OS),
+  falling back to the native orientation where the display pipeline cannot
+  rotate.
+- **`OpenGL=ES32`**: the OpenGL ES 3.2 flavor - `GLES3/glus32.h` compiles
+  the API surface against `<GLES3/gl32.h>`; ES 3.2 is a superset of ES 3.1,
+  so its program helpers stay included.
+- The evdev key translation and input move into the shared
+  `GLUS/glus_os_linux_keymap.h` and `GLUS/glus_os_linux_evdev.h`, used by
+  the fbdev and GBM backends (moved verbatim, md5-verified).
+- Verified: every flavor on Windows and desktop Linux, ARM cross builds for
+  all three windowing backends, and on the STM32MP157F-DK2 - GLES2 and
+  OpenVG examples render under Weston (Wayland) and fullscreen without a
+  compositor (GBM).
+
 ### v1.1.6
 
 One `GLUSindex` width for every flavor.
