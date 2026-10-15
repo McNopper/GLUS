@@ -10,8 +10,8 @@ tracing, spherical harmonics, FFT, Perlin noise).
 frequently vendored by downstream projects. Treat every change to `src/` as a
 change to somebody else's build. Concretely:
 
-- No API or ABI changes without an explicit decision. Renaming a `glus*`
-  symbol, changing a struct layout (`GLUSshape`, `GLUSimage`, `GLUStgaimage`,
+- No API or ABI changes without an explicit decision. Renaming a `glus*` symbol,
+  changing a struct layout (`GLUSshape`, `GLUSimage`, `GLUStgaimage`,
   `GLUSmaterial`, ...) or widening/narrowing a `GLUS*` typedef is a breaking
   change to every consumer, including prebuilt ones.
 - No behaviour changes outside the specific defect being fixed. If a fix would
@@ -24,7 +24,7 @@ change to somebody else's build. Concretely:
 
 ## Build (standalone)
 
-```
+```sh
 cmake -S . -B build/ninja -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build/ninja
 ```
@@ -35,10 +35,10 @@ in `cmake/` is registered **only when GLUS is the top-level project**, so being
 vendored never disturbs the host build.
 
 Build variants (see the header comment in `CMakeLists.txt`): `OpenGL=ES2`,
-`OpenGL=ES3`, `OpenGL=ES31`, `OpenGL=ES32` select the OpenGL ES flavour; `SoC=fbdev` selects
-the Linux framebuffer windowing (`GPU=Vivante` guards its EGL windowing API),
-`SoC=Wayland` the Wayland windowing and `SoC=GBM` the GBM/DRM windowing
-(`Rotation=0|90|180|270` its display orientation).
+`OpenGL=ES3`, `OpenGL=ES31`, `OpenGL=ES32` select the OpenGL ES flavour;
+`SoC=fbdev` selects the Linux framebuffer windowing (`GPU=Vivante` guards its
+EGL windowing API), `SoC=Wayland` the Wayland windowing and `SoC=GBM` the
+GBM/DRM windowing (`Rotation=0|90|180|270` its display orientation).
 `Android/jni/Android.mk` covers the NDK build.
 
 ## Finding and eliminating bugs
@@ -48,7 +48,7 @@ time - a clean checkout with none of these tools installed builds exactly as
 before.
 
 | Layer | Command | Gate |
-|---|---|---|
+| --- | --- | --- |
 | Compiler warnings | part of every build | `ENABLE_WERROR=ON` makes them fatal |
 | cppcheck | `cmake --build build/ninja --target cppcheck` | exits non-zero on findings |
 | cppcheck (exhaustive) | `... --target cppcheck-strict` | opt-in, adds style + inconclusive |
@@ -63,17 +63,17 @@ Two switches in `cmake/warnings.cmake`:
 - `ENABLE_WERROR` (default **OFF**) - promotes warnings to errors. Leave it off
   while a baseline is being cleared; turn it on once the tree is clean so the
   gate holds.
-- `ENABLE_SANITIZER` (default off; GCC/Clang only) - `address`,
-  `undefined`, `address,undefined` or `thread`. This is the highest-yield lane
-  for this library, because the file parsers and mesh generators take
-  dimensions and counts straight from untrusted input.
+- `ENABLE_SANITIZER` (default off; GCC/Clang only) - `address`, `undefined`,
+  `address,undefined` or `thread`. This is the highest-yield lane for this
+  library, because the file parsers and mesh generators take dimensions and
+  counts straight from untrusted input.
 
-**Suggested bug-elimination cycle.** Build with `ENABLE_SANITIZER=address,undefined`,
-run `cppcheck`, run `check_tidy.py`, then drive the decoders with malformed
-input. Fix defects in that order of confidence (crash/overflow first, then
-undefined behaviour, then wrong results), re-running the full set after each
-change. When anything broken is found at any point, drop back to bugs
-immediately.
+**Suggested bug-elimination cycle.** Build with
+`ENABLE_SANITIZER=address,undefined`, run `cppcheck`, run `check_tidy.py`, then
+drive the decoders with malformed input. Fix defects in that order of confidence
+(crash/overflow first, then undefined behaviour, then wrong results), re-running
+the full set after each change. When anything broken is found at any point, drop
+back to bugs immediately.
 
 Suppression policy: `cppcheck.supp` stays short and every entry carries a
 justification comment. Prefer an inline `// cppcheck-suppress <id>` for a
@@ -83,7 +83,7 @@ green - fix the finding or justify it in writing.
 ## Layout
 
 | Path | Contents |
-|---|---|
+| --- | --- |
 | `src/` | all implementation, one module per file (`glus_*.c`) |
 | `src/GLUS/` | the public API headers (`glus.h` umbrella lives in `src/GL/`, `src/GLES2/`, `src/GLES3/`, `src/VG/`) |
 | `src/GL/`, `src/GLES2/`, `src/GLES3/`, `src/VG/` | per-API umbrella headers selecting the `GLUS*` typedef sets |
@@ -101,23 +101,22 @@ Look here first; these are the patterns that have historically produced bugs
 in this kind of code, and the analyser configuration is tuned for them.
 
 - **Integer overflow in size and offset arithmetic.** `GLUSuint`/`GLUSint` are
-  32-bit. Expressions like `pixelsRead * bitsPerPixel / 8`,
-  `width * height * sizeof(...)`, `(rows + 1) * (columns + 1)` wrap silently
-  and then size a `malloc` far too small while the fill loop still runs the
-  full iteration count. Compute sizes in `size_t` and check the product
-  *before* it truncates.
-- **Truncation into narrower fields.** `GLUSushort` image dimensions, `(GLUSushort)width`
-  casts, `GLUSint` pixel counters. A cast that narrows is a bug unless the
-  range is checked on the line above.
-- **Unvalidated parser input.** `sscanf` return values ignored, `strncmp(prefix, 1)`
-  matching longer identifiers, per-line record counts driving allocations.
+  32-bit. Expressions like `pixelsRead * bitsPerPixel / 8`, `width * height *
+  sizeof(...)`, `(rows + 1) * (columns + 1)` wrap silently and then size a
+  `malloc` far too small while the fill loop still runs the full iteration
+  count. Compute sizes in `size_t` and check the product *before* it truncates.
+- **Truncation into narrower fields.** `GLUSushort` image dimensions,
+  `(GLUSushort)width` casts, `GLUSint` pixel counters. A cast that narrows is a
+  bug unless the range is checked on the line above.
+- **Unvalidated parser input.** `sscanf` return values ignored, `strncmp(prefix,
+  1)` matching longer identifiers, per-line record counts driving allocations.
   Malformed `.obj`/`.mtl`/`.tga`/`.hdr`/`.pkm`/`.gltf` must be survivable.
-- **Leaks on error paths.** Every early `return GLUS_FALSE` / `return NULL` in
-  a loader must release what it already allocated.
-- **Uninitialized values on failure paths.** A struct handed to a caller must
-  be fully written even when the call fails, or the caller reads garbage.
-- **Ignored `glusVector3Normalizef` return.** It returns `GLUS_FALSE` and
-  leaves the vector untouched for a zero-length input; ignoring that yields a
+- **Leaks on error paths.** Every early `return GLUS_FALSE` / `return NULL` in a
+  loader must release what it already allocated.
+- **Uninitialized values on failure paths.** A struct handed to a caller must be
+  fully written even when the call fails, or the caller reads garbage.
+- **Ignored `glusVector3Normalizef` return.** It returns `GLUS_FALSE` and leaves
+  the vector untouched for a zero-length input; ignoring that yields a
   degenerate matrix/plane or a non-unit quaternion rather than a diagnosable
   error. `asinf`/`acosf` arguments need a clamp to `[-1, 1]`.
 - **`malloc(0)` divergence.** `glus_memory.c` and `glus_memory_nodm.c` disagree
@@ -126,22 +125,22 @@ in this kind of code, and the analyser configuration is tuned for them.
 ## Conventions
 
 - **Production code discipline**: everything here is production code and the
-  same bar applies everywhere - clean code and clean architecture, **no
-  hacks**. When a shortcut tempts (content sniffing, magic numbers, hidden
-  special cases, duplicated blocks, indirections that silently die), solve it
-  properly instead: explicit structure and shared helpers.
+  same bar applies everywhere - clean code and clean architecture, **no hacks**.
+  When a shortcut tempts (content sniffing, magic numbers, hidden special cases,
+  duplicated blocks, indirections that silently die), solve it properly instead:
+  explicit structure and shared helpers.
 - **Work priority is a strict cycle**: **bugs first**, then refactoring or new
   features. When anything broken is found at any point, drop back to bugs
   immediately and re-enter the cycle from the top.
 - **Dependency licence gate**: before adding any third-party code, check the
   licence for closed-source commercial use. MIT / BSD / zlib / Apache-2.0 /
   Unlicense pass; copyleft (GPL/LGPL/SSPL) and non-commercial (CC-BY-NC,
-  CC-BY-NC-ND) fail; unclear means ask. Record the result in
-  `THIRD-PARTY.md` in the same change. The existing `stb` pin is a moving
-  `master` ref - pin it to a commit hash before any release.
+  CC-BY-NC-ND) fail; unclear means ask. Record the result in `THIRD-PARTY.md` in
+  the same change. The existing `stb` pin is a moving `master` ref - pin it to a
+  commit hash before any release.
 - **Comments explain *why*, not *what***. The valuable comments here cite the
-  spec section or derive the formula; keep that. Do not narrate code, and do
-  not remove an existing rationale comment.
+  spec section or derive the formula; keep that. Do not narrate code, and do not
+  remove an existing rationale comment.
 - **Determinism matters** to consumers doing golden-image comparison: avoid
   introducing fast-math or FP-contraction assumptions into the math core.
 - **Language**: English only, always - in code, comments, docs and commit

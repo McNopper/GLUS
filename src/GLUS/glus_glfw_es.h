@@ -75,7 +75,7 @@
  */
 
 /* The unknown key */
-#define GLFW_KEY_UNKNOWN -1
+#define GLFW_KEY_UNKNOWN (-1)
 
 /* Printable keys */
 #define GLFW_KEY_SPACE 32

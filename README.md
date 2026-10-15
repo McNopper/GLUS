@@ -1,5 +1,4 @@
-GLUS - Modern OpenGL Utilities
-===============================
+# GLUS - Modern OpenGL Utilities
 
 [![Build](https://github.com/McNopper/GLUS/actions/workflows/build.yml/badge.svg)](https://github.com/McNopper/GLUS/actions/workflows/build.yml)
 
@@ -14,31 +13,30 @@ shader utilities and more. GLUS lives in its own repository and is used by the
 
 Embedded Linux windowing backends and the OpenGL ES 3.2 flavor.
 
-- **`SoC=fbdev`** (renamed from `SoC=iMX6`, no alias): the backend is the
-  Linux framebuffer windowing approach, not one SoC. Selecting it requires
-  **`GPU=Vivante`** (the default) - the `fb*` windowing of
-  `EGL/eglvivante.h` is Vivante's API; other GPUs are rejected at configure
-  time until they have their own implementation.
+- **`SoC=fbdev`** (renamed from `SoC=iMX6`, no alias): the backend is the Linux
+  framebuffer windowing approach, not one SoC. Selecting it requires
+  **`GPU=Vivante`** (the default) - the `fb*` windowing of `EGL/eglvivante.h` is
+  Vivante's API; other GPUs are rejected at configure time until they have their
+  own implementation.
 - **`SoC=Wayland`**: new backend - an xdg-shell toplevel window, the
-  `wl_egl_window` of libwayland-egl as the EGL native window and input
-  through `wl_seat`. GPU independent; the xdg-shell protocol code is
-  generated at build time.
-- **`SoC=GBM`**: new backend - gbm device and gbm surface on a DRM node,
-  KMS modeset and a page flip per swap, no compositor. **`Rotation=0|90|180|270`**
-  selects the display orientation through the DRM plane rotation property
-  (the same orientation concept the Android backend handles from the OS),
-  falling back to the native orientation where the display pipeline cannot
-  rotate.
-- **`OpenGL=ES32`**: the OpenGL ES 3.2 flavor - `GLES3/glus32.h` compiles
-  the API surface against `<GLES3/gl32.h>`; ES 3.2 is a superset of ES 3.1,
-  so its program helpers stay included.
+  `wl_egl_window` of libwayland-egl as the EGL native window and input through
+  `wl_seat`. GPU independent; the xdg-shell protocol code is generated at build
+  time.
+- **`SoC=GBM`**: new backend - gbm device and gbm surface on a DRM node, KMS
+  modeset and a page flip per swap, no compositor. **`Rotation=0|90|180|270`**
+  selects the display orientation through the DRM plane rotation property (the
+  same orientation concept the Android backend handles from the OS), falling
+  back to the native orientation where the display pipeline cannot rotate.
+- **`OpenGL=ES32`**: the OpenGL ES 3.2 flavor - `GLES3/glus32.h` compiles the
+  API surface against `<GLES3/gl32.h>`; ES 3.2 is a superset of ES 3.1, so its
+  program helpers stay included.
 - The evdev key translation and input move into the shared
-  `GLUS/glus_os_linux_keymap.h` and `GLUS/glus_os_linux_evdev.h`, used by
-  the fbdev and GBM backends (moved verbatim, md5-verified).
-- Verified: every flavor on Windows and desktop Linux, ARM cross builds for
-  all three windowing backends, and on the STM32MP157F-DK2 - GLES2 and
-  OpenVG examples render under Weston (Wayland) and fullscreen without a
-  compositor (GBM).
+  `GLUS/glus_os_linux_keymap.h` and `GLUS/glus_os_linux_evdev.h`, used by the
+  fbdev and GBM backends (moved verbatim, md5-verified).
+- Verified: every flavor on Windows and desktop Linux, ARM cross builds for all
+  three windowing backends, and on the STM32MP157F-DK2 - GLES2 and OpenVG
+  examples render under Weston (Wayland) and fullscreen without a compositor
+  (GBM).
 
 ### v1.1.6
 
@@ -46,10 +44,10 @@ One `GLUSindex` width for every flavor.
 
 - **`glus2.h` uses the same 32-bit `GLUSindex` as `glus3.h`, `glus31.h` and
   `GL/glus.h`**. The type changed per includer before, so the very same
-  `GLUSshape` struct held 16-bit indices through `glus2.h` and 32-bit
-  indices through the other headers - any build mixing flavors (one GLUS
-  library, ES 2.0 and ES 3.x consumers) read the index arrays as the wrong
-  width and rendered garbage.
+  `GLUSshape` struct held 16-bit indices through `glus2.h` and 32-bit indices
+  through the other headers - any build mixing flavors (one GLUS library, ES 2.0
+  and ES 3.x consumers) read the index arrays as the wrong width and rendered
+  garbage.
 
 ### v1.1.5
 
@@ -67,11 +65,11 @@ OpenVG support restored and the ES flavors fixed for desktop Linux.
 - **ARM platforms**: an explicitly requested flavor is no longer overridden by
   the historical ES 2.0 default, and the OS backend is selectable per platform:
   `SoC=fbdev` for the Linux framebuffer windowing - combined with `GPU=Vivante`
-  for the EGL stack's fb* windowing API (e.g. STM32MP1) -, `SoC=Wayland` for
-  the Wayland windowing (xdg-shell toplevel and `wl_egl_window`, GPU
-  independent), `SoC=GBM` for the GBM/DRM windowing without a compositor
-  (gbm surface presented by KMS page flips) and `SoC=Linux`
-  for generic arm Linux (X11), Raspberry Pi as before.
+  for the EGL stack's fb* windowing API (e.g. STM32MP1) -, `SoC=Wayland` for the
+  Wayland windowing (xdg-shell toplevel and `wl_egl_window`, GPU independent),
+  `SoC=GBM` for the GBM/DRM windowing without a compositor (gbm surface
+  presented by KMS page flips) and `SoC=Linux` for generic arm Linux (X11),
+  Raspberry Pi as before.
 
 ### v1.1.4
 
@@ -79,17 +77,17 @@ Bug fixes and internal refactoring; no API or ABI changes. Parser and window
 behaviour are byte-identical (verified with golden and differential harnesses).
 
 - **Bug fixes**: MTL keyword overmatch (a prefix `strncmp` matching longer
-  identifiers), EGL handle typedefs in the public headers, and loader
-  error-path hygiene.
+  identifiers), EGL handle typedefs in the public headers, and loader error-path
+  hygiene.
 - **Wavefront parser decomposed**: the 770-line `_glusWavefrontParse` is now
   eight per-record handlers with a shared parse context and a single cleanup
   path.
 - **`glusWindowCreate` decomposed** into three attribute-walker helpers and one
-  validated size-hint setter with a single fail path; all error exits keep
-  their exact messages and ordering.
+  validated size-hint setter with a single fail path; all error exits keep their
+  exact messages and ordering.
 - **fbdev backend**: the evdev literals use `<linux/input.h>` names and the
-  EVIOCGBIT device signatures are spelled as their `EV_*` bit combinations;
-  the wavefront face-encoding codes are a named enum.
+  EVIOCGBIT device signatures are spelled as their `EV_*` bit combinations; the
+  wavefront face-encoding codes are a named enum.
 
 ### v1.1.3
 
@@ -107,31 +105,32 @@ Platform build fixes and CI; no library behaviour changes.
   failed on a current Mac. The FetchContent patch now drops the AGL link; GL
   symbols resolve through the OpenGL framework, which glew already links.
 - **CI and releases**: GitHub Actions build workflow for Windows, Linux and
-  macOS on every push and pull request, and a release workflow that attaches
-  the binary SDK drops (static library, headers, shaders) to each tagged
-  GitHub release.
+  macOS on every push and pull request, and a release workflow that attaches the
+  binary SDK drops (static library, headers, shaders) to each tagged GitHub
+  release.
 
 ### v1.1.2
 
-Second correctness pass, aimed at the arithmetic and parsing defects this code is
-prone to (see `AGENTS.md`):
+Second correctness pass, aimed at the arithmetic and parsing defects this code
+is prone to (see `AGENTS.md`):
 
 - **Integer overflow in size/offset arithmetic**: TGA RLE write offsets, the HDR
-  scanline size and the procedural mesh-generator vertex/index counts now compute
-  in 64-bit / `size_t` and are range-checked before they truncate. The TGA BGR
-  swap loop bound is 64-bit, so it can no longer wrap and silently skip the swap.
+  scanline size and the procedural mesh-generator vertex/index counts now
+  compute in 64-bit / `size_t` and are range-checked before they truncate. The
+  TGA BGR swap loop bound is 64-bit, so it can no longer wrap and silently skip
+  the swap.
 - **Widened multiplication arithmetic**: the flagged `count * stride` products
   (334 sites across the decoders, mesh generators and math core) are computed in
-  the wide type instead of being widened after a narrow 32-bit multiply, removing
-  the associated signed-overflow undefined behaviour.
+  the wide type instead of being widened after a narrow 32-bit multiply,
+  removing the associated signed-overflow undefined behaviour.
 - **Parser input**: all numeric extraction in the Wavefront OBJ/MTL and Radiance
-  HDR loaders moved from `sscanf` to `strtof`/`strtol` with `endptr` checking, so
-  a malformed field is detectable rather than silently ignored.
+  HDR loaders moved from `sscanf` to `strtof`/`strtol` with `endptr` checking,
+  so a malformed field is detectable rather than silently ignored.
 - **Uninitialized values**: zero the glTF accessor unpack buffer before
   `cgltf_accessor_unpack_floats` (it may legitimately write fewer floats than
   requested) and the HDR RLE `repeat` state.
-- **Memory safety**: explicit NULL guards around the Wavefront scene snapshot and
-  the group-list append.
+- **Memory safety**: explicit NULL guards around the Wavefront scene snapshot
+  and the group-list append.
 - **Control flow**: explicit `default:` cases on switches over non-enum values.
 - **Portability**: `#pragma once` replaced with include guards.
 - **Build**: `stb` is pinned to a commit hash instead of the moving `master` ref
@@ -142,16 +141,37 @@ prone to (see `AGENTS.md`):
 ### v1.1.1
 
 Security and correctness fixes across parsers, math, and platform layers:
-- **TGA loader**: bounded the RLE packet against the remaining output buffer (heap overflow); validated colour-map indices; skipped the Image ID field; validated `colorMapEntrySize`; endian-safe dimension decoding.
-- **HDR (Radiance) loader**: bounded the resolution-line read (stack overflow); checked `sscanf` return and validated dimensions (uninitialised variable / integer overflow); fixed signed-char comparison breaking new-style RLE for common widths.
-- **glTF loader**: call `cgltf_validate()` (arbitrary read/write primitives); clamp accessor component copy loop (heap overflow); validate morph-target and animation sampler sizes; add recursion depth guard; check all allocations; key texture cache on sRGB flag; reject path-traversal URIs.
-- **Wavefront OBJ/MTL loader**: bounded all `sscanf` conversions (`%31s` / `%255s`); bounds-checked face indices with relative-index resolution; fixed unsigned underflow in fan triangulation; NULL-guarded material pointer; bounded struct-field string copies.
-- **Math**: guard Perlin `% amplitude` against zero (SIGFPE); fix tangent-loop out-of-bounds write; add quaternion slerp shortest-path; fix vector reflect aliasing; fix disc UV formula; clamp `acosf`/`asinf` domains; fix oriented-box inverse rotation order.
-- **Shape generators**: tighten `glusShapeCreateDomef` minimum; guard degenerate-UV tangent determinant; validate adjacency edge indices.
-- **Program**: fix shader/program leaks on compile/link failure paths; handle zero-length info logs.
-- **Window/OS**: fix `tolower` on GLFW key codes (UB); fix button-release XOR (phantom held button); update cached dimensions on resize; check `XOpenDisplay` result; fix X resource leaks; fix `glusExtensionIsSupported` on core-profile contexts.
+
+- **TGA loader**: bounded the RLE packet against the remaining output buffer
+  (heap overflow); validated colour-map indices; skipped the Image ID field;
+  validated `colorMapEntrySize`; endian-safe dimension decoding.
+- **HDR (Radiance) loader**: bounded the resolution-line read (stack overflow);
+  checked `sscanf` return and validated dimensions (uninitialised variable /
+  integer overflow); fixed signed-char comparison breaking new-style RLE for
+  common widths.
+- **glTF loader**: call `cgltf_validate()` (arbitrary read/write primitives);
+  clamp accessor component copy loop (heap overflow); validate morph-target and
+  animation sampler sizes; add recursion depth guard; check all allocations; key
+  texture cache on sRGB flag; reject path-traversal URIs.
+- **Wavefront OBJ/MTL loader**: bounded all `sscanf` conversions (`%31s` /
+  `%255s`); bounds-checked face indices with relative-index resolution; fixed
+  unsigned underflow in fan triangulation; NULL-guarded material pointer;
+  bounded struct-field string copies.
+- **Math**: guard Perlin `% amplitude` against zero (SIGFPE); fix tangent-loop
+  out-of-bounds write; add quaternion slerp shortest-path; fix vector reflect
+  aliasing; fix disc UV formula; clamp `acosf`/`asinf` domains; fix oriented-box
+  inverse rotation order.
+- **Shape generators**: tighten `glusShapeCreateDomef` minimum; guard
+  degenerate-UV tangent determinant; validate adjacency edge indices.
+- **Program**: fix shader/program leaks on compile/link failure paths; handle
+  zero-length info logs.
+- **Window/OS**: fix `tolower` on GLFW key codes (UB); fix button-release XOR
+  (phantom held button); update cached dimensions on resize; check
+  `XOpenDisplay` result; fix X resource leaks; fix `glusExtensionIsSupported` on
+  core-profile contexts.
 - **Memory**: raise `glus_memory_nodm` alignment to `max_align_t`.
-- **Files**: fix `fopen(NULL)` UB; fix `ftell` truncation into 32-bit `GLUSint`; treat short writes as errors.
+- **Files**: fix `fopen(NULL)` UB; fix `ftell` truncation into 32-bit `GLUSint`;
+  treat short writes as errors.
 
 ### v1.1.0
 
@@ -160,11 +180,11 @@ Security and correctness fixes across parsers, math, and platform layers:
   match the GLUS glTF PBR shaders. Covers the full core spec — scenes / node
   hierarchy (TRS and matrix), meshes (all primitive modes), PBR
   metallic-roughness materials, textures / samplers / images (external, GLB
-  embedded and `data:` URIs), sparse accessors, skins, TRS animation
-  (STEP / LINEAR / CUBICSPLINE), morph targets and cameras. Khronos / vendor
-  extensions are **not** interpreted by GLUS; the parsed cgltf tree stays
-  reachable through `glusGltfGetCgltfData()` so each application can read the
-  extension data it needs (e.g. `KHR_gaussian_splatting`) itself.
+  embedded and `data:` URIs), sparse accessors, skins, TRS animation (STEP /
+  LINEAR / CUBICSPLINE), morph targets and cameras. Khronos / vendor extensions
+  are **not** interpreted by GLUS; the parsed cgltf tree stays reachable through
+  `glusGltfGetCgltfData()` so each application can read the extension data it
+  needs (e.g. `KHR_gaussian_splatting`) itself.
 - GLUS now fetches **cgltf** and **stb** (stb_image) and exposes their include
   directories publicly, and defines **`GLUS_SHADER_DIR`** (the absolute path to
   GLUS' `shader/` directory) so applications load the glTF / IBL shaders
@@ -224,10 +244,13 @@ target_link_libraries(your_target PRIVATE GLUS)
 For the desktop OpenGL build, the following are automatically fetched and built
 via CMake `FetchContent` - no manual installation required:
 
-- **GLFW 3.4** - https://github.com/glfw/glfw - window and input management
-- **GLEW 2.2.0** - https://github.com/Perlmint/glew-cmake - OpenGL extension loading
-- **cgltf v1.14** - https://github.com/jkuhlmann/cgltf - glTF 2.0 parser (used by the glTF loader)
-- **stb** (stb_image) - https://github.com/nothings/stb - image decoding (used by the glTF loader)
+- **GLFW 3.4** - <https://github.com/glfw/glfw> - window and input management
+- **GLEW 2.2.0** - <https://github.com/Perlmint/glew-cmake> - OpenGL extension
+  loading
+- **cgltf v1.14** - <https://github.com/jkuhlmann/cgltf> - glTF 2.0 parser (used
+  by the glTF loader)
+- **stb** (stb_image) - <https://github.com/nothings/stb> - image decoding (used
+  by the glTF loader)
 
 When GLUS is added to a parent project that already provides these targets, the
 existing ones are reused instead of being fetched again.
@@ -238,10 +261,15 @@ GLUS is MIT licensed (see [LICENSE](LICENSE)). The desktop OpenGL build depends
 on the following third-party projects, which are fetched automatically and are
 **not** part of the GLUS source tree:
 
-- **GLFW 3.4** - https://github.com/glfw/glfw - zlib/libpng license
-- **GLEW 2.2.0** (via [glew-cmake](https://github.com/Perlmint/glew-cmake)) - MIT / BSD
-- **cgltf v1.14** - https://github.com/jkuhlmann/cgltf - MIT (Copyright (c) 2018-2021 Johannes Kuhlmann). Compiled into the GLUS static library through `CGLTF_IMPLEMENTATION` by the glTF loader (`glus_gltf.c`).
-- **stb / stb_image** - https://github.com/nothings/stb - MIT / Public Domain (Copyright (c) 2017 Sean Barrett). Compiled into the GLUS static library through `STB_IMAGE_IMPLEMENTATION` by the glTF loader (`glus_gltf.c`).
+- **GLFW 3.4** - <https://github.com/glfw/glfw> - zlib/libpng license
+- **GLEW 2.2.0** (via [glew-cmake](https://github.com/Perlmint/glew-cmake)) -
+  MIT / BSD
+- **cgltf v1.14** - <https://github.com/jkuhlmann/cgltf> - MIT (Copyright (c)
+  2018-2021 Johannes Kuhlmann). Compiled into the GLUS static library through
+  `CGLTF_IMPLEMENTATION` by the glTF loader (`glus_gltf.c`).
+- **stb / stb_image** - <https://github.com/nothings/stb> - MIT / Public Domain
+  (Copyright (c) 2017 Sean Barrett). Compiled into the GLUS static library
+  through `STB_IMAGE_IMPLEMENTATION` by the glTF loader (`glus_gltf.c`).
 
 Because cgltf and stb_image are compiled into `GLUS`, their copyright and
 permission notices are redistributed with any binary that links GLUS, as
@@ -250,8 +278,8 @@ required by their licenses.
 ## OpenGL ES / OpenVG
 
 OpenGL ES 2.0/3.0/3.1/3.2 and OpenVG builds are selected via the `OpenGL` CMake
-variable (e.g. `-DOpenGL=ES2`, `-DOpenGL=ES`, `-DOpenGL=ES31`, `-DOpenGL=ES32`). An Android NDK
-build is available under `Android/jni`.
+variable (e.g. `-DOpenGL=ES2`, `-DOpenGL=ES`, `-DOpenGL=ES31`, `-DOpenGL=ES32`).
+An Android NDK build is available under `Android/jni`.
 
 ## Documentation
 
