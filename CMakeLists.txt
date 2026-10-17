@@ -478,3 +478,36 @@ IF(NOT (${OpenGL} MATCHES "ES|VG"))
 	target_compile_definitions(GLUS PUBLIC GLUS_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shader")
 
 ENDIF()
+
+# Installation (issue: "CMake misses GL/glus.h and GLUS/*.h header install").
+# The public headers keep their source layout under the prefix so the relative
+# includes between them (../GLES3/glus32.h, ../GLUS/glus_clib.h) keep working
+# from the install tree; the master header is additionally provided as
+# GL/glus.h, the include path consumers of GLUS have always used. Desktop GL
+# consumers additionally need GLEW, which stays their dependency.
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+	include(GNUInstallDirs)
+
+	file(GLOB GLUS_INSTALL_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/src/GLUS/*.h)
+	install(FILES ${GLUS_INSTALL_HEADERS} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/GLUS)
+	install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/GLES2/glus2.h
+		DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/GLES2)
+	install(FILES
+		${CMAKE_CURRENT_SOURCE_DIR}/src/GLES3/glus3.h
+		${CMAKE_CURRENT_SOURCE_DIR}/src/GLES3/glus31.h
+		${CMAKE_CURRENT_SOURCE_DIR}/src/GLES3/glus32.h
+		DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/GLES3)
+	install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/VG/glus.h
+		DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/VG)
+	install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/GL/glus.h
+		DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/GL)
+	install(TARGETS GLUS ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
+
+	# pkg-config file for non-MSVC consumers: -lGLUS plus the include root is
+	# all the install provides; EGL/GLES/GLFW dependencies stay with the
+	# application, exactly as in the source-tree build.
+	configure_file(${CMAKE_CURRENT_LIST_DIR}/cmake/glus.pc.in
+		${CMAKE_CURRENT_BINARY_DIR}/glus.pc @ONLY)
+	install(FILES ${CMAKE_CURRENT_BINARY_DIR}/glus.pc
+		DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
+endif()
