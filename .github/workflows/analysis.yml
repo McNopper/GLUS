@@ -21,6 +21,7 @@ jobs:
             libx11-dev \
             libwayland-dev \
             libgl1-mesa-dev \
+            libxkbcommon-dev \
             pipx
 
       - name: Configure (compile database)
@@ -43,7 +44,7 @@ jobs:
           ./actionlint
 
       - name: markdownlint
-        run: npx -y markdownlint-cli2 --config .markdownlint.yaml "**/*.md"
+        run: npx -y markdownlint-cli2 --config .markdownlint.yaml "**/*.md" "!build/**"
 
       - name: gitleaks (git history)
         run: |
