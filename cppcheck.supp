@@ -4,3 +4,4 @@ unmatchedSuppression
 funcArgOrderDifferent
 unusedFunction
 syntaxError:*glew.h
+divbyzero:*stb_image.h
