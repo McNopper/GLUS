@@ -66,7 +66,10 @@ GLUSvoid GLUSAPIENTRY glusLogPrint(GLUSuint verbosity, const char* format, ...)
 
         va_start(argList, format);
 
-        vsnprintf(buffer, GLUS_MAX_CHARS_LOGGING, format, argList);
+        // The glibc va_list is an array type, and this analyzer version loses
+        // the va_start binding across its decay into the call; the list is
+        // started above on every path that reaches this call.
+        vsnprintf(buffer, GLUS_MAX_CHARS_LOGGING, format, argList); // NOLINT(clang-analyzer-valist.Uninitialized)
 
         printf("LOG [%s]: %s\n", logString, buffer);
 
@@ -105,7 +108,8 @@ GLUSvoid GLUSAPIENTRY glusLogPrintError(GLUSuint verbosity, const char* format, 
 
         va_start(argList, format);
 
-        vsnprintf(buffer, GLUS_MAX_CHARS_LOGGING, format, argList);
+        // Same glibc va_list analyzer limitation as in glusLogPrint above.
+        vsnprintf(buffer, GLUS_MAX_CHARS_LOGGING, format, argList); // NOLINT(clang-analyzer-valist.Uninitialized)
 
         printf("LOG [%s]: glGetError() = 0x%x %s\n", logString, error, buffer);
 
