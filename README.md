@@ -9,6 +9,14 @@ shader utilities and more. GLUS lives in its own repository and is used by the
 
 ## Changelog
 
+### v1.1.8
+
+Header installation and gate fixes:
+
+- **Install rules added** (CMake misses `GL/glus.h` and `GLUS/*.h` header install, issue #1): the public headers keep their source layout under `include/` (`GLUS/`, `GLES2/`, `GLES3/`, `VG/`), the master header is additionally provided as `include/GL/glus.h`, the static library installs to `lib/` and a generated `glus.pc` lands in `lib/pkgconfig` - verified with a cold configure, install and a consumer compile against the prefix.
+- **GLFW_KEY_UNKNOWN** macro replacement parenthesized (found through the OpenGL_ES clang-tidy gate).
+- Quality-gate baseline: yamllint-clean workflows (LF pinned), Ruff-clean `tools/check_tidy.py` with `--allow-no-checks`, markdown at the lint-config baseline (fence languages, title styles, 80-column prose).
+
 ### v1.1.7
 
 Embedded Linux windowing backends and the OpenGL ES 3.2 flavor.
