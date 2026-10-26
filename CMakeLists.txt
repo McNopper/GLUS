@@ -451,14 +451,14 @@ IF(NOT (${OpenGL} MATCHES "ES|VG"))
 
 	target_link_libraries(GLUS PUBLIC libglew_static glfw)
 
-	# cgltf v1.14 - single-header glTF 2.0 parser, and stb_image.h for image
+	# cgltf v1.15 - single-header glTF 2.0 parser, and stb_image.h for image
 	# decoding. Used by the desktop-only glTF loader (glus_gltf.c). The include
 	# directories are exposed publicly so consumers can read glTF extension data
 	# directly from cgltf when they need to.
 	FetchContent_Declare(
 		cgltf
 		GIT_REPOSITORY https://github.com/jkuhlmann/cgltf.git
-		GIT_TAG        v1.14
+		GIT_TAG        v1.15
 	)
 	FetchContent_MakeAvailable(cgltf)
 
