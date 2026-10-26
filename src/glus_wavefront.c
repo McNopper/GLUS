@@ -1089,6 +1089,14 @@ static GLUSboolean _glusWavefrontFlushObject(GLUSwavefrontParseContext* ctx)
     {
         GLUSboolean copyResult;
 
+        // An object with no geometry has no wavefront to snapshot. The move
+        // below already fails for that case; fail before the copy here, so
+        // the snapshot memcpy can never see a null source.
+        if (!ctx->wavefront)
+        {
+            return GLUS_FALSE;
+        }
+
         if (ctx->wavefront && ctx->currentGroupList)
         {
             ctx->currentGroupList->group.numberIndices = ctx->numberIndicesGroup;
