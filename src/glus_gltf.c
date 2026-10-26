@@ -602,9 +602,22 @@ static GLUSboolean gltfUploadMorphDeltas(GLUSgltfPrimitive* gp, cgltf_primitive*
         glusLogPrint(GLUS_LOG_ERROR, "glTF: out of memory while uploading morph positions");
         return GLUS_FALSE;
     }
-    if (mt > 0 && gltfFindTargetAttribute(&prim->targets[0], cgltf_attribute_type_normal))
+    /* A target may carry any subset of the core attributes, so the presence of
+     * NORMAL and TANGENT deltas has to be determined across all targets, not
+     * just the first one. */
+    for (ti = 0; ti < mt; ti++)
     {
-        hasN   = 1;
+        if (gltfFindTargetAttribute(&prim->targets[ti], cgltf_attribute_type_normal))
+        {
+            hasN = 1;
+        }
+        if (gltfFindTargetAttribute(&prim->targets[ti], cgltf_attribute_type_tangent))
+        {
+            hasT = 1;
+        }
+    }
+    if (hasN)
+    {
         norBuf = (GLfloat*)calloc(posFloats, sizeof(GLfloat));
         if (!norBuf)
         {
@@ -613,9 +626,8 @@ static GLUSboolean gltfUploadMorphDeltas(GLUSgltfPrimitive* gp, cgltf_primitive*
             return GLUS_FALSE;
         }
     }
-    if (mt > 0 && gltfFindTargetAttribute(&prim->targets[0], cgltf_attribute_type_tangent))
+    if (hasT)
     {
-        hasT   = 1;
         tanBuf = (GLfloat*)calloc((size_t)mt * (size_t)vertCount * 4u, sizeof(GLfloat));
         if (!tanBuf)
         {
