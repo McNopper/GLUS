@@ -25,6 +25,9 @@ glTF parser and morph-target correctness:
 - **Analysis CI lane**: cppcheck and clang-tidy over the real Linux compile
   database, yamllint, actionlint, markdownlint and gitleaks, with the lint
   policies committed so local and CI runs agree.
+- **Wavefront loader hardening**: an explicit guard in the object flush makes
+  the loader fail cleanly on object nodes without geometry; no behavior
+  change for valid assets.
 
 ### v1.1.8
 
