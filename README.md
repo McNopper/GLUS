@@ -9,6 +9,23 @@ shader utilities and more. GLUS lives in its own repository and is used by the
 
 ## Changelog
 
+### v1.1.9
+
+glTF parser and morph-target correctness:
+
+- **cgltf updated to v1.15**: improved validation, sampler filter/wrap
+  enums, `cgltf_find_accessor`, and parsing for
+  `KHR_materials_diffuse_transmission` and `EXT_texture_webp` (WebP images
+  still fall back to the default texture because stb_image cannot decode
+  them).
+- **Morph NORMAL and TANGENT deltas are now detected across all targets**,
+  not just the first: glTF allows each morph target to carry a different
+  attribute subset, and deltas supplied only by a later target were silently
+  dropped. Targets lacking an attribute still contribute zero deltas.
+- **Analysis CI lane**: cppcheck and clang-tidy over the real Linux compile
+  database, yamllint, actionlint, markdownlint and gitleaks, with the lint
+  policies committed so local and CI runs agree.
+
 ### v1.1.8
 
 Header installation and gate fixes:
