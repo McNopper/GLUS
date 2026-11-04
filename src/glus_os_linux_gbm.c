@@ -28,6 +28,8 @@
 
 #include "GL/glus.h"
 
+#include <poll.h>
+
 #include <xf86drm.h>
 #include <xf86drmMode.h>
 #include <gbm.h>
@@ -325,8 +327,48 @@ static int glusOsSetPlaneRotation(const int degrees)
     return applied;
 }
 
+// Page flips are submitted with DRM_MODE_PAGE_FLIP_EVENT, and every flip event
+// must be consumed on the DRM file descriptor: with the queue left unread, the
+// legacy page flip can no longer complete and every later flip is dropped - the
+// picture freezes while rendering keeps running.
+static void _glusOsFlipEventHandler(int fileDescriptor, unsigned int frame, unsigned int seconds, unsigned int microseconds, void* userData)
+{
+    // The event alone completes the flip; the render loop needs no timing.
+    (void)fileDescriptor;
+    (void)frame;
+    (void)seconds;
+    (void)microseconds;
+    (void)userData;
+}
+
+static drmEventContext g_drmEventContext = { 2, 0, _glusOsFlipEventHandler };
+
+static GLUSvoid _glusOsDrmDrainEvents()
+{
+    struct pollfd pollDescriptor;
+
+    if (g_drmFileDescriptor < 0)
+    {
+        return;
+    }
+
+    pollDescriptor.fd = g_drmFileDescriptor;
+
+    pollDescriptor.events = POLLIN;
+
+    pollDescriptor.revents = 0;
+
+    // Bounded drain: each readable event is one queued flip.
+    while (poll(&pollDescriptor, 1, 0) > 0 && (pollDescriptor.revents & POLLIN))
+    {
+        drmHandleEvent(g_drmFileDescriptor, &g_drmEventContext);
+    }
+}
+
 GLUSvoid _glusOsPollEvents()
 {
+    _glusOsDrmDrainEvents();
+
     glusOsEvdevPoll();
 
     // glusWindowLoop polls right after eglSwapBuffers: the new front buffer
