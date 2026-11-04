@@ -9,6 +9,16 @@ shader utilities and more. GLUS lives in its own repository and is used by the
 
 ## Changelog
 
+### v1.1.10
+
+GBM/DRM display fix:
+
+- **Page flip events are now consumed**: flips were submitted with
+  `DRM_MODE_PAGE_FLIP_EVENT` but the event queue was never read, so the
+  kernel stopped completing further flips and the picture froze after a few
+  frames. The DRM file descriptor is now drained non-blocking in
+  `_glusOsPollEvents()` before the front buffer is locked.
+
 ### v1.1.9
 
 glTF parser and morph-target correctness:
