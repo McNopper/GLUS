@@ -9,6 +9,19 @@ shader utilities and more. GLUS lives in its own repository and is used by the
 
 ## Changelog
 
+### v1.1.11
+
+Linux windowing and toolchain compatibility:
+
+- **Current Xlib headers build with `ENABLE_WERROR=ON`**: the two deprecated
+  `XKeycodeToKeysym` calls now use `XkbKeycodeToKeysym`, preserving all 496
+  keycode/level mappings in the WSL comparison probe.
+- **Desktop OpenGL starts on Wayland sessions**: GLFW 3.4 otherwise defaults
+  to Wayland/EGL while GLEW requires GLX, leaving every desktop example with
+  `GLEW_ERROR_NO_GLX_DISPLAY`. The GLFW window backend now selects X11
+  explicitly on Linux; XWayland supplies the GLX context on WSLg and native
+  Wayland sessions.
+
 ### v1.1.10
 
 GBM/DRM display fix:

@@ -22,6 +22,7 @@
 
 #include <X11/X.h>
 #include <X11/Xlib.h>
+#include <X11/XKBlib.h>
 #include <X11/Xatom.h>
 #include <X11/Xutil.h>
 #include <X11/extensions/Xrandr.h>
@@ -119,7 +120,7 @@ GLUSint _glusTranslateKey(int keycode)
     // Try secondary keysym, for numeric keypad keys
     // Note: This way we always force "NumLock = ON", which at least
     // enables GLFW users to detect numeric keypad keys
-    key = XKeycodeToKeysym(g_nativeDisplay, keycode, 1);
+    key = XkbKeycodeToKeysym(g_nativeDisplay, keycode, 0, 1);
     switch (key)
     {
     // Numeric keypad
@@ -155,7 +156,7 @@ GLUSint _glusTranslateKey(int keycode)
     }
 
     // Now try pimary keysym
-    key = XKeycodeToKeysym(g_nativeDisplay, keycode, 0);
+    key = XkbKeycodeToKeysym(g_nativeDisplay, keycode, 0, 0);
     switch (key)
     {
     // Special keys (non character keys)

@@ -584,6 +584,13 @@ GLUSboolean GLUSAPIENTRY glusWindowCreate(const GLUSchar* title, const GLUSint w
         return GLUS_FALSE;
     }
 
+#if defined(__linux__)
+    // GLEW initializes through GLX, which is unavailable when GLFW 3.4 picks
+    // its Wayland/EGL backend by default. Select X11 explicitly; on a Wayland
+    // session XWayland provides the GLX context this backend requires.
+    glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_X11);
+#endif
+
     if (!glfwInit())
     {
         glusLogPrint(GLUS_LOG_ERROR, "GLFW could not be initialized");
